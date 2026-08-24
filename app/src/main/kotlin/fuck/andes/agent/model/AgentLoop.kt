@@ -2,6 +2,7 @@ package fuck.andes.agent.model
 
 import fuck.andes.agent.runtime.AgentEvent
 import fuck.andes.agent.runtime.AgentRunController
+import fuck.andes.agent.runtime.AgentRunCancelledException
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -38,21 +39,29 @@ internal class AgentLoop(
     private val sensitiveToolCallIds = linkedSetOf<String>()
     private var pendingToolImageMessage: JSONObject? = null
 
+    private companion object {
+        const val MAX_RETRIES = 5
+        val RETRY_DELAY_MS = longArrayOf(500, 1_000, 2_000, 4_000, 8_000)
+    }
+
     fun reasoningSnapshot(): String = accumulatedReasoning.toString().trim()
 
     fun sensitiveToolCallIdsSnapshot(): Set<String> = sensitiveToolCallIds.toSet()
 
-    fun run(): Result {
-        var round = 1
-
-        while (true) {
+    private fun callProviderWithRetry(round: Int): ProviderResponse {
+        var lastError: Throwable? = null
+        for (attempt in 0..MAX_RETRIES) {
+            if (attempt > 0) {
+                try {
+                    Thread.sleep(RETRY_DELAY_MS[attempt - 1])
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    throw AgentRunCancelledException()
+                }
+            }
             runController.throwIfCancelled()
-            appendPendingSteeringMessage()
-            onEvent(AgentEvent.RoundStarted(round = round, messageCount = messages.length()))
-
-            val reasoningLengthBeforeRound = accumulatedReasoning.length
-            val providerResponse = try {
-                provider.complete(
+            try {
+                return provider.complete(
                     request = ProviderRequest(
                         config = config,
                         messages = messages,
@@ -68,10 +77,28 @@ internal class AgentLoop(
                     }
                     providerEvent.toAgentEvent(round)?.let(onEvent)
                 }
-            } finally {
-                // 截图只供紧接着的一次推理消费；成功、失败或取消后都不进入后续上下文与归档。
-                discardPendingToolImageMessage()
+            } catch (cancelled: AgentRunCancelledException) {
+                throw cancelled
+            } catch (throwable: Throwable) {
+                lastError = throwable
             }
+        }
+        throw lastError ?: IllegalStateException("Provider failed after $MAX_RETRIES retries")
+    }
+
+    fun run(): Result {
+        var round = 1
+
+        while (true) {
+            runController.throwIfCancelled()
+            appendPendingSteeringMessage()
+            onEvent(AgentEvent.RoundStarted(round = round, messageCount = messages.length()))
+
+            val reasoningLengthBeforeRound = accumulatedReasoning.length
+            val providerResponse = callProviderWithRetry(round)
+
+            // 截图只供紧接着的一次推理消费；成功、失败或取消后都不进入后续上下文与归档。
+            discardPendingToolImageMessage()
 
             runController.throwIfCancelled()
             val assistantMessage = providerResponse.assistantMessage
