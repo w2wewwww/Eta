@@ -19,6 +19,11 @@ import io.github.libxposed.service.XposedService
  */
 internal object Prefs {
 
+    /** 模型请求失败后的额外重试次数（不含首次请求）。 */
+    const val DEFAULT_MODEL_REQUEST_RETRIES = 5
+    const val MIN_MODEL_REQUEST_RETRIES = 0
+    const val MAX_MODEL_REQUEST_RETRIES = 10
+
     /** 远程配置组名，UI 写入与 Hook 读取必须一致。 */
     const val GROUP = "fuck_andes_prefs"
 
@@ -43,6 +48,7 @@ internal object Prefs {
         const val AGENT_DEVICE_SENSITIVE_READ_TOOLS = "agent_device_sensitive_read_tools"
         const val AGENT_DEVICE_SENSITIVE_ACTION_TOOLS = "agent_device_sensitive_action_tools"
         const val AGENT_THINKING_ENABLED = "agent_thinking_enabled"
+        const val AGENT_MODEL_REQUEST_RETRIES = "agent_model_request_retries"
         const val AGENT_RUNTIME_CONFIG_JSON = "agent_runtime_config_json"
 
         /** 全部布尔开关及其默认值。 */
@@ -72,6 +78,11 @@ internal object Prefs {
             AGENT_DEVICE_SENSITIVE_READ_TOOLS,
             AGENT_DEVICE_SENSITIVE_ACTION_TOOLS,
             AGENT_THINKING_ENABLED,
+        )
+
+        /** 由 Eta Runtime 最终裁决的数值配置。 */
+        val LOCAL_AGENT_INTEGER_KEYS: Set<String> = setOf(
+            AGENT_MODEL_REQUEST_RETRIES,
         )
     }
 
@@ -122,6 +133,18 @@ internal object Prefs {
         return remote?.getString(key, "") ?: ""
     }
 
+    /** 读取模型请求重试次数，并限制在受支持范围内。 */
+    fun modelRequestRetries(preferences: SharedPreferences? = null): Int {
+        val source = preferences ?: localAgent ?: remote
+        return runCatching {
+            source?.getInt(Keys.AGENT_MODEL_REQUEST_RETRIES, DEFAULT_MODEL_REQUEST_RETRIES)
+                ?: DEFAULT_MODEL_REQUEST_RETRIES
+        }.getOrDefault(DEFAULT_MODEL_REQUEST_RETRIES).coerceIn(
+            MIN_MODEL_REQUEST_RETRIES,
+            MAX_MODEL_REQUEST_RETRIES,
+        )
+    }
+
     fun powerAssistantTarget(): PowerAssistantTarget = powerAssistantTarget(remote)
 
     fun powerAssistantTarget(preferences: SharedPreferences?): PowerAssistantTarget {
@@ -168,6 +191,18 @@ internal object Prefs {
                 }
                 remotePreferences.contains(key) -> {
                     localEditor.putBoolean(key, remotePreferences.getBoolean(key, default))
+                    updateLocal = true
+                }
+            }
+        }
+        Keys.LOCAL_AGENT_INTEGER_KEYS.forEach { key ->
+            when {
+                local.contains(key) -> {
+                    remoteEditor.putInt(key, modelRequestRetries(local))
+                    updateRemote = true
+                }
+                remotePreferences.contains(key) -> {
+                    localEditor.putInt(key, modelRequestRetries(remotePreferences))
                     updateLocal = true
                 }
             }

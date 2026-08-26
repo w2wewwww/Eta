@@ -942,6 +942,10 @@
   <string name="skills_replace_summary">已存在用户 Skill“%1$s”（%2$s）。替换会覆盖它当前的全部文件。</string>
   <string name="settings_context_extensions">上下文与扩展</string>
   <string name="settings_llm_providers">LLM 提供商</string>
+  <string name="settings_model_request_retries">模型请求重试次数</string>
+  <string name="settings_model_request_retries_summary">模型请求失败后自动重试 %1$d 次（不含首次请求）</string>
+  <string name="settings_model_request_retries_dialog_summary">可设置 0 到 10 次。设置为 0 将关闭自动重试。</string>
+  <string name="settings_model_request_retries_input_label">重试次数</string>
   <string name="skills_replace">替换</string>
   <string name="skills_delete_summary">删除“%1$s”后需要重新安装才能恢复。</string>
   <string name="skills_no_description">无描述</string>

@@ -11,9 +11,12 @@ import android.service.voice.VoiceInteractionService
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -21,12 +24,14 @@ import androidx.compose.ui.res.painterResource
 import com.composables.icons.lucide.R as LucideR
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -55,6 +60,7 @@ import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
@@ -145,6 +151,43 @@ internal fun SettingsScreen(
     // LSPosed 数据库）；未就绪时保持 null，UI 禁止修改。
     var prefs by remember { mutableStateOf(Prefs.remotePreferencesForUi(FuckAndesApp.serviceInstance)) }
     val agentPrefs = remember { Prefs.localAgentPreferences() }
+    var modelRequestRetries by remember(agentPrefs) {
+        mutableIntStateOf(Prefs.modelRequestRetries(agentPrefs))
+    }
+    var showModelRequestRetriesDialog by remember { mutableStateOf(false) }
+    var modelRequestRetriesInput by remember { mutableStateOf("") }
+    DisposableEffect(agentPrefs) {
+        val targetPrefs = agentPrefs ?: return@DisposableEffect onDispose {}
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { changedPrefs, key ->
+            if (key == Prefs.Keys.AGENT_MODEL_REQUEST_RETRIES) {
+                modelRequestRetries = Prefs.modelRequestRetries(changedPrefs)
+            }
+        }
+        targetPrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { targetPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    fun commitModelRequestRetries(value: Int) {
+        val targetPrefs = agentPrefs ?: return
+        val normalized = value.coerceIn(
+            Prefs.MIN_MODEL_REQUEST_RETRIES,
+            Prefs.MAX_MODEL_REQUEST_RETRIES,
+        )
+        if (!putIntSync(targetPrefs, Prefs.Keys.AGENT_MODEL_REQUEST_RETRIES, normalized)) {
+            Toast.makeText(
+                context.applicationContext,
+                context.getString(R.string.settings_write_failed),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        modelRequestRetries = normalized
+        // Keep the local preference as the source of truth and refresh the serialized runtime
+        // config used by assistant hook processes when the framework is available.
+        Prefs.reconcileAgentPreferences(FuckAndesApp.serviceInstance)
+        coroutineScope.launch(Dispatchers.IO) {
+            RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+        }
+    }
     var powerAssistantTarget by remember(prefs) {
         mutableStateOf(Prefs.powerAssistantTarget(prefs))
     }
@@ -217,6 +260,33 @@ internal fun SettingsScreen(
                         key = Prefs.Keys.AGENT_THINKING_ENABLED,
                         icon = LucideR.drawable.lucide_ic_brain_circuit,
                         iconTint = ColorOSRoyalBlue,
+                    )
+                    PrefDivider()
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_model_request_retries),
+                        summary = stringResource(
+                            R.string.settings_model_request_retries_summary,
+                            modelRequestRetries,
+                        ),
+                        startAction = {
+                            TintedIcon(
+                                icon = LucideR.drawable.lucide_ic_refresh_cw,
+                                tint = ColorOSAmberYellow,
+                            )
+                        },
+                        endActions = {
+                            Text(
+                                text = modelRequestRetries.toString(),
+                                fontSize = MiuixTheme.textStyles.body2.fontSize,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            )
+                        },
+                        onClick = {
+                            modelRequestRetriesInput = modelRequestRetries.toString()
+                            showModelRequestRetriesDialog = true
+                        },
+                        holdDownState = showModelRequestRetriesDialog,
+                        enabled = agentPrefs != null,
                     )
                 }
             }
@@ -649,6 +719,38 @@ internal fun SettingsScreen(
             }
         }
 
+        val parsedModelRequestRetries = modelRequestRetriesInput.toIntOrNull()
+        WindowDialog(
+            show = showModelRequestRetriesDialog,
+            title = stringResource(R.string.settings_model_request_retries),
+            summary = stringResource(R.string.settings_model_request_retries_dialog_summary),
+            onDismissRequest = { showModelRequestRetriesDialog = false },
+        ) {
+            Column {
+                TextField(
+                    value = modelRequestRetriesInput,
+                    onValueChange = { value ->
+                        modelRequestRetriesInput = value.filter(Char::isDigit).take(2)
+                    },
+                    label = stringResource(R.string.settings_model_request_retries_input_label),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                MiuixDialogActions(
+                    confirmText = stringResource(R.string.action_confirm),
+                    confirmEnabled = parsedModelRequestRetries != null &&
+                        parsedModelRequestRetries in Prefs.MIN_MODEL_REQUEST_RETRIES..Prefs.MAX_MODEL_REQUEST_RETRIES,
+                    onCancel = { showModelRequestRetriesDialog = false },
+                    onConfirm = {
+                        parsedModelRequestRetries?.let(::commitModelRequestRetries)
+                        showModelRequestRetriesDialog = false
+                    },
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+            }
+        }
+
         SystemizerConfirmDialog(
             show = showSystemizerDialog,
             installing = installingSystemizer,
@@ -820,6 +922,13 @@ private fun putStringSync(
     value: String
 ): Boolean =
     runCatching { prefs.edit().putString(key, value).commit() }.getOrDefault(false)
+
+private fun putIntSync(
+    prefs: SharedPreferences,
+    key: String,
+    value: Int,
+): Boolean =
+    runCatching { prefs.edit().putInt(key, value).commit() }.getOrDefault(false)
 
 private fun PowerAssistantTarget.displayName(context: Context): String =
     when (this) {

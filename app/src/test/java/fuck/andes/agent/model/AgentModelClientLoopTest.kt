@@ -471,7 +471,8 @@ class AgentModelClientLoopTest {
 
         val failure = assertThrows(AgentModelExecutionException::class.java) {
             AgentModelClient.complete(
-                config = modelConfig(),
+                // This test verifies transcript recovery, not the retry delay budget.
+                config = modelConfig().copy(modelRequestRetries = 0),
                 prompt = "开始",
                 toolExecutor = AgentModelClient.ToolExecutor {
                     AgentModelClient.ToolResult("{\"ok\":true}")
@@ -482,6 +483,62 @@ class AgentModelClientLoopTest {
 
         assertEquals(listOf("assistant", "tool"), failure.transcript.map { it.role })
         assertEquals("先检查状态", failure.reasoningContent)
+    }
+
+    @Test
+    fun zeroModelRequestRetriesMakesOnlyTheInitialProviderCall() {
+        val provider = ScriptedProvider(
+            responses = listOf(
+                { _, _ -> error("provider disconnected") },
+            )
+        )
+
+        assertThrows(AgentModelExecutionException::class.java) {
+            AgentModelClient.complete(
+                config = modelConfig().copy(modelRequestRetries = 0),
+                prompt = "开始",
+                toolExecutor = AgentModelClient.ToolExecutor {
+                    AgentModelClient.ToolResult("{\"ok\":true}")
+                },
+                provider = provider,
+            )
+        }
+
+        assertEquals(1, provider.requests.size)
+    }
+
+    @Test
+    fun configuredModelRequestRetriesAllowProviderRecovery() {
+        val provider = ScriptedProvider(
+            responses = listOf(
+                { _, _ -> error("transient provider failure") },
+                { _, _ -> assistant(content = "恢复", finishReason = "stop") },
+            )
+        )
+
+        val result = AgentModelClient.complete(
+            config = modelConfig().copy(modelRequestRetries = 1),
+            prompt = "开始",
+            toolExecutor = AgentModelClient.ToolExecutor {
+                AgentModelClient.ToolResult("{\"ok\":true}")
+            },
+            provider = provider,
+        )
+
+        assertEquals("恢复", result.content)
+        assertEquals(2, provider.requests.size)
+    }
+
+    @Test
+    fun modelRequestRetriesAreBoundedAndCannotBeNegative() {
+        assertThrows(IllegalArgumentException::class.java) {
+            modelConfig().copy(modelRequestRetries = -1)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            modelConfig().copy(
+                modelRequestRetries = AgentModelClient.ModelConfig.MAX_MODEL_REQUEST_RETRIES + 1,
+            )
+        }
     }
 
     @Test

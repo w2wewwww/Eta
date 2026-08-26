@@ -40,7 +40,6 @@ internal class AgentLoop(
     private var pendingToolImageMessage: JSONObject? = null
 
     private companion object {
-        const val MAX_RETRIES = 5
         val RETRY_DELAY_MS = longArrayOf(500, 1_000, 2_000, 4_000, 8_000)
     }
 
@@ -50,10 +49,13 @@ internal class AgentLoop(
 
     private fun callProviderWithRetry(round: Int): ProviderResponse {
         var lastError: Throwable? = null
-        for (attempt in 0..MAX_RETRIES) {
+        // modelRequestRetries 表示失败后的额外重试次数，因此 0 仍会执行一次初始请求。
+        for (attempt in 0..config.modelRequestRetries) {
             if (attempt > 0) {
                 try {
-                    Thread.sleep(RETRY_DELAY_MS[attempt - 1])
+                    Thread.sleep(
+                        RETRY_DELAY_MS[(attempt - 1).coerceAtMost(RETRY_DELAY_MS.lastIndex)]
+                    )
                 } catch (_: InterruptedException) {
                     Thread.currentThread().interrupt()
                     throw AgentRunCancelledException()
@@ -83,7 +85,9 @@ internal class AgentLoop(
                 lastError = throwable
             }
         }
-        throw lastError ?: IllegalStateException("Provider failed after $MAX_RETRIES retries")
+        throw lastError ?: IllegalStateException(
+            "Provider failed after ${config.modelRequestRetries} retries"
+        )
     }
 
     fun run(): Result {

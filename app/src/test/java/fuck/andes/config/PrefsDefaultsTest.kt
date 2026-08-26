@@ -45,5 +45,12 @@ class PrefsDefaultsTest {
             ),
             Prefs.Keys.LOCAL_AGENT_KEYS,
         )
+        assertEquals(
+            setOf(Prefs.Keys.AGENT_MODEL_REQUEST_RETRIES),
+            Prefs.Keys.LOCAL_AGENT_INTEGER_KEYS,
+        )
+        assertEquals(5, Prefs.DEFAULT_MODEL_REQUEST_RETRIES)
+        assertEquals(0, Prefs.MIN_MODEL_REQUEST_RETRIES)
+        assertEquals(10, Prefs.MAX_MODEL_REQUEST_RETRIES)
     }
 }

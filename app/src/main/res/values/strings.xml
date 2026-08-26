@@ -957,6 +957,10 @@
   <string name="skills_replace_summary">A user skill named “%1$s” (%2$s) already exists. Replacing it will overwrite all of its current files.</string>
   <string name="settings_context_extensions">Context &amp; extensions</string>
   <string name="settings_llm_providers">LLM providers</string>
+  <string name="settings_model_request_retries">Model request retries</string>
+  <string name="settings_model_request_retries_summary">Retry failed model requests %1$d times (excluding the initial request)</string>
+  <string name="settings_model_request_retries_dialog_summary">Set a value from 0 to 10. Zero disables automatic retries.</string>
+  <string name="settings_model_request_retries_input_label">Retry count</string>
   <string name="skills_replace">Replace</string>
   <string name="skills_delete_summary">After deleting “%1$s”, you will need to reinstall it to restore it.</string>
   <string name="skills_no_description">No description</string>

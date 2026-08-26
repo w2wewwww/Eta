@@ -199,6 +199,10 @@ class AgentRuntimeWireTest {
         assertEquals(true, config.deviceDirectTools)
         assertEquals(false, config.deviceSensitiveReadTools)
         assertEquals(false, config.deviceSensitiveActionTools)
+        assertEquals(
+            AgentModelClient.ModelConfig.DEFAULT_MODEL_REQUEST_RETRIES,
+            config.modelRequestRetries,
+        )
     }
 
     @Test
@@ -228,6 +232,7 @@ class AgentRuntimeWireTest {
                 baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
                 apiKey = "test-key",
                 model = "qwen3-max",
+                modelRequestRetries = 2,
                 contextWindow = 262_144,
                 systemPrompt = "你是手机 Agent",
                 terminalTools = true,
@@ -273,6 +278,7 @@ class AgentRuntimeWireTest {
         val bundle = AgentRuntimeWire.toLegacyBundle(request)
         assertEquals(true, bundle.containsKey("browser_tools"))
         assertEquals(true, bundle.getBoolean("browser_tools"))
+        assertEquals(2, bundle.getInt("model_request_retries"))
         val roundTripped = AgentRuntimeWire.runRequestFromBundle(bundle)
 
         assertEquals(request, roundTripped)
@@ -298,6 +304,7 @@ class AgentRuntimeWireTest {
             remove("browser_tools")
             remove("context_window")
             remove("reasoning_effort")
+            remove("model_request_retries")
             putBoolean("thinking_enabled", true)
         }
 
@@ -306,6 +313,10 @@ class AgentRuntimeWireTest {
         assertEquals(true, roundTripped.config.browserTools)
         assertNull(roundTripped.config.contextWindow)
         assertEquals(ReasoningEffort.DEFAULT, roundTripped.config.reasoningEffort)
+        assertEquals(
+            AgentModelClient.ModelConfig.DEFAULT_MODEL_REQUEST_RETRIES,
+            roundTripped.config.modelRequestRetries,
+        )
     }
 
     @Test

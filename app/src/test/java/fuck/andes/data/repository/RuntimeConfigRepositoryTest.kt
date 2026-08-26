@@ -46,6 +46,10 @@ class RuntimeConfigRepositoryTest {
 
         assertEquals(ProviderTypes.OPENAI_COMPATIBLE, root.getValue("providerType").jsonPrimitive.content)
         assertEquals("gpt-5.5", root.getValue("model").jsonPrimitive.content)
+        assertEquals(
+            AgentModelClient.ModelConfig.DEFAULT_MODEL_REQUEST_RETRIES,
+            root.getValue("modelRequestRetries").jsonPrimitive.content.toInt(),
+        )
         assertEquals(256_000, config.contextWindow)
         assertEquals(listOf("x-provider", "x-model"), config.customHeaders.map { it.name })
         assertEquals(ReasoningEffort.DEFAULT, config.reasoningEffort)
@@ -59,5 +63,13 @@ class RuntimeConfigRepositoryTest {
             config.reasoningCapabilities?.selectableEfforts,
         )
         assertEquals(config, Json.decodeFromString<AgentModelClient.ModelConfig>(raw))
+
+        val customRetryConfig = config.copy(modelRequestRetries = 3)
+        val customRetryJson = RuntimeConfigRepository.runtimeConfigJson(customRetryConfig)
+        assertEquals(
+            3,
+            Json.decodeFromString<AgentModelClient.ModelConfig>(customRetryJson)
+                .modelRequestRetries,
+        )
     }
 }

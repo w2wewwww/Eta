@@ -65,6 +65,7 @@ internal object AgentModelClient {
             apiKey = "",
             model = "gpt-5.5",
             modelDisplayName = "GPT-5.5",
+            modelRequestRetries = Prefs.modelRequestRetries(),
             systemPrompt = BuiltinProviders.DEFAULT_SYSTEM_PROMPT,
             terminalTools = Prefs.isEnabled(Prefs.Keys.AGENT_TERMINAL_TOOLS),
             browserTools = Prefs.isEnabled(Prefs.Keys.AGENT_BROWSER_TOOLS),
@@ -201,6 +202,11 @@ internal object AgentModelClient {
         val apiKey: String,
         val model: String,
         val modelDisplayName: String = "",
+        /**
+         * Provider 请求失败后允许的额外重试次数。0 表示只发送一次请求；旧版配置缺少
+         * 该字段时由 kotlinx.serialization 使用默认值，保持原先固定 5 次重试的行为。
+         */
+        val modelRequestRetries: Int = DEFAULT_MODEL_REQUEST_RETRIES,
         val contextWindow: Int? = null,
         val systemPrompt: String,
         val anthropicVersion: String = AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
@@ -218,8 +224,19 @@ internal object AgentModelClient {
         val customHeaders: List<CustomHeader> = emptyList(),
         val customBody: List<CustomBody> = emptyList()
     ) {
+        init {
+            require(modelRequestRetries in 0..MAX_MODEL_REQUEST_RETRIES) {
+                "模型请求重试次数必须在 0-$MAX_MODEL_REQUEST_RETRIES 之间"
+            }
+        }
+
         val effectiveReasoningEffort: ReasoningEffort
             get() = reasoningEffort ?: ReasoningEffort.fromLegacy(thinkingEnabled)
+
+        companion object {
+            const val DEFAULT_MODEL_REQUEST_RETRIES = Prefs.DEFAULT_MODEL_REQUEST_RETRIES
+            const val MAX_MODEL_REQUEST_RETRIES = Prefs.MAX_MODEL_REQUEST_RETRIES
+        }
     }
 
     @Serializable
