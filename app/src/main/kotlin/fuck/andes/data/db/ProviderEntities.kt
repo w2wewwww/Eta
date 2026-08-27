@@ -38,6 +38,8 @@ internal data class ProviderEntity(
     @ColumnInfo(name = "custom_body_json") val customBodyJson: String,
     @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "endpoint_mode") val endpointMode: String,
+    @ColumnInfo(name = "normalize_chat_content", defaultValue = "0")
+    val normalizeChatContent: Boolean = false,
     @ColumnInfo(name = "hosted_web_search_enabled", defaultValue = "0")
     val hostedWebSearchEnabled: Boolean,
     @ColumnInfo(name = "anthropic_version") val anthropicVersion: String,
@@ -115,6 +117,11 @@ internal fun ProviderSetting.toEntity(): ProviderEntity =
             is CustomProviderSetting -> endpointMode
             is AnthropicProviderSetting -> OpenAiEndpointMode.CHAT_COMPLETIONS
         },
+        normalizeChatContent = when (this) {
+            is OpenAiCompatibleProviderSetting -> normalizeChatContent
+            is CustomProviderSetting -> normalizeChatContent
+            is AnthropicProviderSetting -> false
+        },
         hostedWebSearchEnabled = hostedWebSearchEnabled,
         anthropicVersion = when (this) {
             is AnthropicProviderSetting -> anthropicVersion
@@ -169,6 +176,7 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             customBody = ProviderJson.decodeBody(provider.customBodyJson),
             createdAt = provider.createdAt,
             endpointMode = provider.endpointMode.ifBlank { OpenAiEndpointMode.CHAT_COMPLETIONS },
+            normalizeChatContent = provider.normalizeChatContent,
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
         )
 
@@ -187,6 +195,7 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             customBody = ProviderJson.decodeBody(provider.customBodyJson),
             createdAt = provider.createdAt,
             endpointMode = provider.endpointMode.ifBlank { OpenAiEndpointMode.CHAT_COMPLETIONS },
+            normalizeChatContent = provider.normalizeChatContent,
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
         )
     }

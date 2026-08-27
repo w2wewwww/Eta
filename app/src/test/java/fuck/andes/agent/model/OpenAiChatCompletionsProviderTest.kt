@@ -459,4 +459,21 @@ class OpenAiChatCompletionsProviderTest {
 
     private fun JSONArray.roles(): List<String> =
         (0 until length()).map { index -> getJSONObject(index).getString("role") }
+
+    @Test
+    fun requestNormalizesTypedContentForStrictChatCompletionsServers() {
+        val source = JSONArray()
+            .put(JSONObject().put("role", "user").put("content", JSONArray()
+                .put(JSONObject().put("type", "input_text").put("text", "第一段"))
+                .put(JSONObject().put("type", "text").put("text", "第二段"))
+            ))
+
+        val messages = OpenAiRequestMessages.forChatCompletions(
+            source = source,
+            normalizeContent = true,
+        )
+
+        assertEquals("第一段\n第二段", messages.getJSONObject(0).getString("content"))
+    }
+
 }

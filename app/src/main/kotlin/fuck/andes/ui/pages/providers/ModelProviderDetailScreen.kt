@@ -85,6 +85,7 @@ private data class ProviderConfigDraft(
     val systemPrompt: String,
     val isEnabled: Boolean,
     val endpointMode: String,
+    val normalizeChatContent: Boolean,
     val hostedWebSearchEnabled: Boolean,
     val anthropicVersion: String,
 ) {
@@ -99,6 +100,11 @@ private data class ProviderConfigDraft(
                 is OpenAiCompatibleProviderSetting -> provider.endpointMode
                 is CustomProviderSetting -> provider.endpointMode
                 is AnthropicProviderSetting -> ""
+            },
+            normalizeChatContent = when (provider) {
+                is OpenAiCompatibleProviderSetting -> provider.normalizeChatContent
+                is CustomProviderSetting -> provider.normalizeChatContent
+                is AnthropicProviderSetting -> false
             },
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
             anthropicVersion = (provider as? AnthropicProviderSetting)?.anthropicVersion
@@ -320,6 +326,15 @@ private fun ProviderConfigTab(
                             )
                         },
                     )
+                    if (draft.endpointMode == OpenAiEndpointMode.CHAT_COMPLETIONS) {
+                        HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                        SwitchPreference(
+                            title = "兼容内容补丁",
+                            summary = "将内容数组扁平化为文本，适用于拒绝 input_text/text 内容块的兼容接口；启用后图片不会随该请求发送。",
+                            checked = draft.normalizeChatContent,
+                            onCheckedChange = { onDraftChange(draft.copy(normalizeChatContent = it)) },
+                        )
+                    }
                     if (draft.endpointMode == OpenAiEndpointMode.RESPONSES) {
                         HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                         SwitchPreference(
@@ -357,6 +372,7 @@ private fun ProviderConfigTab(
                                         systemPrompt = draft.systemPrompt,
                                         isEnabled = draft.isEnabled,
                                         endpointMode = draft.endpointMode,
+                                        normalizeChatContent = draft.normalizeChatContent,
                                         hostedWebSearchEnabled = draft.hostedWebSearchEnabled,
                                         anthropicVersion = draft.anthropicVersion,
                                     )
@@ -433,6 +449,7 @@ private fun ProviderConfigTab(
                                 systemPrompt = draft.systemPrompt,
                                 isEnabled = draft.isEnabled,
                                 endpointMode = draft.endpointMode,
+                                normalizeChatContent = draft.normalizeChatContent,
                                 hostedWebSearchEnabled = draft.hostedWebSearchEnabled,
                                 anthropicVersion = draft.anthropicVersion,
                             )
@@ -612,6 +629,7 @@ private fun buildUpdatedProvider(
     systemPrompt: String,
     isEnabled: Boolean,
     endpointMode: String,
+    normalizeChatContent: Boolean,
     hostedWebSearchEnabled: Boolean,
     anthropicVersion: String,
 ): ProviderSetting {
@@ -624,6 +642,7 @@ private fun buildUpdatedProvider(
             systemPrompt = prompt,
             isEnabled = isEnabled,
             endpointMode = endpointMode,
+            normalizeChatContent = normalizeChatContent,
             hostedWebSearchEnabled = hostedWebSearchEnabled,
         )
         is CustomProviderSetting -> source.copy(
@@ -633,6 +652,7 @@ private fun buildUpdatedProvider(
             systemPrompt = prompt,
             isEnabled = isEnabled,
             endpointMode = endpointMode,
+            normalizeChatContent = normalizeChatContent,
             hostedWebSearchEnabled = hostedWebSearchEnabled,
         )
         is AnthropicProviderSetting -> source.copy(

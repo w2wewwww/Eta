@@ -126,6 +126,11 @@ internal object RuntimeConfigRepository {
             anthropicVersion = (provider as? AnthropicProviderSetting)?.anthropicVersion
                 ?: AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
             openAiEndpointMode = endpointMode,
+            normalizeChatContent = when (provider) {
+                is OpenAiCompatibleProviderSetting -> provider.normalizeChatContent
+                is CustomProviderSetting -> provider.normalizeChatContent
+                is AnthropicProviderSetting -> false
+            },
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
             thinkingEnabled = reasoningCapabilities != null,
             reasoningEffort = reasoningCapabilities?.let { ReasoningEffort.DEFAULT }
