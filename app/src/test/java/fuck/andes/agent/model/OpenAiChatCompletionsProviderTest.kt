@@ -473,7 +473,10 @@ class OpenAiChatCompletionsProviderTest {
             normalizeContent = true,
         )
 
-        assertEquals("第一段\n第二段", messages.getJSONObject(0).getString("content"))
+        val content = messages.getJSONObject(0).getJSONArray("content")
+        assertEquals(1, content.length())
+        assertEquals("text", content.getJSONObject(0).getString("type"))
+        assertEquals("第一段\n第二段", content.getJSONObject(0).getString("text"))
     }
 
 }

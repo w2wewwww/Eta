@@ -12,7 +12,11 @@ internal object OpenAiRequestMessages {
         val system = collectInstructions(source, SYSTEM_ROLES)
         return JSONArray().also { messages ->
             if (system.isNotBlank()) {
-                messages.put(JSONObject().put("role", "system").put("content", system))
+                messages.put(
+                    JSONObject()
+                        .put("role", "system")
+                        .put("content", if (normalizeContent) strictTextContent(system) else system)
+                )
             }
             for (index in 0 until source.length()) {
                 val message = source.optJSONObject(index) ?: continue
@@ -24,10 +28,18 @@ internal object OpenAiRequestMessages {
     }
 
     private fun normalizeChatContent(message: JSONObject): JSONObject {
+        val copy = JSONObject(message.toString())
         val content = message.opt("content")
-        if (content !is JSONArray) return message
-        return JSONObject(message.toString()).put("content", providerMessageText(content))
+        return copy.put("content", strictTextContent(providerMessageText(content)))
     }
+
+    /**
+     * Some nominally OpenAI-compatible gateways reject JSON strings for message.content
+     * and only accept the typed text-part array form. This provider opt-in deliberately
+     * normalizes every role, including generated system and tool messages, to one shape.
+     */
+    private fun strictTextContent(text: String): JSONArray =
+        JSONArray().put(JSONObject().put("type", "text").put("text", text))
 
     fun responsesInstructions(source: JSONArray): String =
         collectInstructions(source, RESPONSES_INSTRUCTION_ROLES)
