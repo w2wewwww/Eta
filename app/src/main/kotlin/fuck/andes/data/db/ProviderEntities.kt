@@ -40,6 +40,8 @@ internal data class ProviderEntity(
     @ColumnInfo(name = "endpoint_mode") val endpointMode: String,
     @ColumnInfo(name = "normalize_chat_content", defaultValue = "0")
     val normalizeChatContent: Boolean = false,
+    @ColumnInfo(name = "stream_chat_completions", defaultValue = "1")
+    val streamChatCompletions: Boolean = true,
     @ColumnInfo(name = "hosted_web_search_enabled", defaultValue = "0")
     val hostedWebSearchEnabled: Boolean,
     @ColumnInfo(name = "anthropic_version") val anthropicVersion: String,
@@ -122,6 +124,11 @@ internal fun ProviderSetting.toEntity(): ProviderEntity =
             is CustomProviderSetting -> normalizeChatContent
             is AnthropicProviderSetting -> false
         },
+        streamChatCompletions = when (this) {
+            is OpenAiCompatibleProviderSetting -> streamChatCompletions
+            is CustomProviderSetting -> streamChatCompletions
+            is AnthropicProviderSetting -> true
+        },
         hostedWebSearchEnabled = hostedWebSearchEnabled,
         anthropicVersion = when (this) {
             is AnthropicProviderSetting -> anthropicVersion
@@ -177,6 +184,7 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             createdAt = provider.createdAt,
             endpointMode = provider.endpointMode.ifBlank { OpenAiEndpointMode.CHAT_COMPLETIONS },
             normalizeChatContent = provider.normalizeChatContent,
+            streamChatCompletions = provider.streamChatCompletions,
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
         )
 
@@ -196,6 +204,7 @@ internal fun ProviderWithModels.toDomain(): ProviderSetting {
             createdAt = provider.createdAt,
             endpointMode = provider.endpointMode.ifBlank { OpenAiEndpointMode.CHAT_COMPLETIONS },
             normalizeChatContent = provider.normalizeChatContent,
+            streamChatCompletions = provider.streamChatCompletions,
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
         )
     }

@@ -108,7 +108,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         )
         return JSONObject()
             .put("model", config.model)
-            .put("stream", true)
+            .put("stream", config.streamChatCompletions)
             .put("messages", OpenAiRequestMessages.forChatCompletions(
                 source = messages,
                 normalizeContent = config.normalizeChatContent,
@@ -142,6 +142,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             ?: error("模型接口未返回 assistant message")
         val content = source.optString("content")
         val reasoning = source.optString("reasoning_content")
+            .ifBlank { source.optString("reasoning") }
         var contentIndex = 0
 
         fun emit(kind: AssistantBlockKind, text: String) {
@@ -259,12 +260,16 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
                     error("模型接口 SSE 以 error 结束")
                 }
                 val delta = choice.optJSONObject("delta") ?: continue
-                if (delta.has("reasoning_content") && !delta.isNull("reasoning_content")) {
-                    val text = delta.optString("reasoning_content")
-                    if (text.isNotEmpty()) {
-                        reasoningContent.append(text)
-                        appendVisibleDelta(AssistantBlockKind.THINKING, text)
-                    }
+                val reasoningDelta = when {
+                    delta.has("reasoning_content") && !delta.isNull("reasoning_content") ->
+                        delta.optString("reasoning_content")
+                    delta.has("reasoning") && !delta.isNull("reasoning") ->
+                        delta.optString("reasoning")
+                    else -> ""
+                }
+                if (reasoningDelta.isNotEmpty()) {
+                    reasoningContent.append(reasoningDelta)
+                    appendVisibleDelta(AssistantBlockKind.THINKING, reasoningDelta)
                 }
                 if (delta.has("content") && !delta.isNull("content")) {
                     val text = delta.optString("content")

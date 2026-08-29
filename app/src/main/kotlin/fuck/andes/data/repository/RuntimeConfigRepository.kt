@@ -131,6 +131,11 @@ internal object RuntimeConfigRepository {
                 is CustomProviderSetting -> provider.normalizeChatContent
                 is AnthropicProviderSetting -> false
             },
+            streamChatCompletions = when (provider) {
+                is OpenAiCompatibleProviderSetting -> provider.streamChatCompletions
+                is CustomProviderSetting -> provider.streamChatCompletions
+                is AnthropicProviderSetting -> true
+            },
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
             thinkingEnabled = reasoningCapabilities != null,
             reasoningEffort = reasoningCapabilities?.let { ReasoningEffort.DEFAULT }

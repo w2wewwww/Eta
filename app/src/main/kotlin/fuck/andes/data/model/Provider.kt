@@ -65,6 +65,7 @@ data class OpenAiCompatibleProviderSetting(
     override val createdAt: Long = System.currentTimeMillis(),
     val endpointMode: String = OpenAiEndpointMode.CHAT_COMPLETIONS,
     val normalizeChatContent: Boolean = false,
+    val streamChatCompletions: Boolean = true,
     override val hostedWebSearchEnabled: Boolean = false,
 ) : ProviderSetting
 
@@ -109,6 +110,7 @@ data class CustomProviderSetting(
     override val createdAt: Long = System.currentTimeMillis(),
     val endpointMode: String = OpenAiEndpointMode.CHAT_COMPLETIONS,
     val normalizeChatContent: Boolean = false,
+    val streamChatCompletions: Boolean = true,
     override val hostedWebSearchEnabled: Boolean = false,
 ) : ProviderSetting
 

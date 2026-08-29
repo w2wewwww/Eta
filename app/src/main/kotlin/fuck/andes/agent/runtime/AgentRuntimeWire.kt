@@ -92,6 +92,7 @@ internal object AgentRuntimeWire {
     private const val KEY_ANTHROPIC_VERSION = "anthropic_version"
     private const val KEY_OPENAI_ENDPOINT_MODE = "openai_endpoint_mode"
     private const val KEY_NORMALIZE_CHAT_CONTENT = "normalize_chat_content"
+    private const val KEY_STREAM_CHAT_COMPLETIONS = "stream_chat_completions"
     private const val KEY_HOSTED_WEB_SEARCH_ENABLED = "hosted_web_search_enabled"
     private const val KEY_TERMINAL_TOOLS = "terminal_tools"
     private const val KEY_BROWSER_TOOLS = "browser_tools"
@@ -256,6 +257,7 @@ internal object AgentRuntimeWire {
         putString(KEY_ANTHROPIC_VERSION, request.config.anthropicVersion)
         putString(KEY_OPENAI_ENDPOINT_MODE, request.config.openAiEndpointMode)
         putBoolean(KEY_NORMALIZE_CHAT_CONTENT, request.config.normalizeChatContent)
+        putBoolean(KEY_STREAM_CHAT_COMPLETIONS, request.config.streamChatCompletions)
         putBoolean(KEY_HOSTED_WEB_SEARCH_ENABLED, request.config.hostedWebSearchEnabled)
         putBoolean(KEY_TERMINAL_TOOLS, request.config.terminalTools)
         putBoolean(KEY_BROWSER_TOOLS, request.config.browserTools)
@@ -376,6 +378,7 @@ internal object AgentRuntimeWire {
                 openAiEndpointMode = bundle.getString(KEY_OPENAI_ENDPOINT_MODE).orEmpty()
                     .ifBlank { fuck.andes.data.model.OpenAiEndpointMode.CHAT_COMPLETIONS },
                 normalizeChatContent = bundle.getBoolean(KEY_NORMALIZE_CHAT_CONTENT, false),
+                streamChatCompletions = bundle.getBoolean(KEY_STREAM_CHAT_COMPLETIONS, true),
                 hostedWebSearchEnabled = bundle.getBoolean(KEY_HOSTED_WEB_SEARCH_ENABLED, false),
                 terminalTools = bundle.getBoolean(KEY_TERMINAL_TOOLS),
                 browserTools = if (bundle.containsKey(KEY_BROWSER_TOOLS)) {

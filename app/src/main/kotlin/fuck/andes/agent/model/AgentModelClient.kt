@@ -212,6 +212,7 @@ internal object AgentModelClient {
         val anthropicVersion: String = AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
         val openAiEndpointMode: String = OpenAiEndpointMode.CHAT_COMPLETIONS,
         val normalizeChatContent: Boolean = false,
+        val streamChatCompletions: Boolean = true,
         val hostedWebSearchEnabled: Boolean = false,
         val terminalTools: Boolean = false,
         val browserTools: Boolean = true,

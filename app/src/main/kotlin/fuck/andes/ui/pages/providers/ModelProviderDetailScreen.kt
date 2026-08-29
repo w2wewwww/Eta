@@ -86,6 +86,7 @@ private data class ProviderConfigDraft(
     val isEnabled: Boolean,
     val endpointMode: String,
     val normalizeChatContent: Boolean,
+    val streamChatCompletions: Boolean,
     val hostedWebSearchEnabled: Boolean,
     val anthropicVersion: String,
 ) {
@@ -105,6 +106,11 @@ private data class ProviderConfigDraft(
                 is OpenAiCompatibleProviderSetting -> provider.normalizeChatContent
                 is CustomProviderSetting -> provider.normalizeChatContent
                 is AnthropicProviderSetting -> false
+            },
+            streamChatCompletions = when (provider) {
+                is OpenAiCompatibleProviderSetting -> provider.streamChatCompletions
+                is CustomProviderSetting -> provider.streamChatCompletions
+                is AnthropicProviderSetting -> true
             },
             hostedWebSearchEnabled = provider.hostedWebSearchEnabled,
             anthropicVersion = (provider as? AnthropicProviderSetting)?.anthropicVersion
@@ -329,8 +335,15 @@ private fun ProviderConfigTab(
                     if (draft.endpointMode == OpenAiEndpointMode.CHAT_COMPLETIONS) {
                         HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                         SwitchPreference(
+                            title = "流式响应",
+                            summary = "启用时使用 SSE 实时显示；关闭时使用普通 JSON 响应。部分兼容接口仅支持非流式请求。",
+                            checked = draft.streamChatCompletions,
+                            onCheckedChange = { onDraftChange(draft.copy(streamChatCompletions = it)) },
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                        SwitchPreference(
                             title = "兼容内容补丁",
-                            summary = "将内容数组扁平化为文本，适用于拒绝 input_text/text 内容块的兼容接口；启用后图片不会随该请求发送。",
+                            summary = "将 content 内容块数组扁平化为字符串，适用于仅接受字符串内容的兼容接口；启用后图片不会随该请求发送。",
                             checked = draft.normalizeChatContent,
                             onCheckedChange = { onDraftChange(draft.copy(normalizeChatContent = it)) },
                         )
@@ -373,6 +386,7 @@ private fun ProviderConfigTab(
                                         isEnabled = draft.isEnabled,
                                         endpointMode = draft.endpointMode,
                                         normalizeChatContent = draft.normalizeChatContent,
+                                        streamChatCompletions = draft.streamChatCompletions,
                                         hostedWebSearchEnabled = draft.hostedWebSearchEnabled,
                                         anthropicVersion = draft.anthropicVersion,
                                     )
@@ -630,6 +644,7 @@ private fun buildUpdatedProvider(
     isEnabled: Boolean,
     endpointMode: String,
     normalizeChatContent: Boolean,
+    streamChatCompletions: Boolean,
     hostedWebSearchEnabled: Boolean,
     anthropicVersion: String,
 ): ProviderSetting {
@@ -643,6 +658,7 @@ private fun buildUpdatedProvider(
             isEnabled = isEnabled,
             endpointMode = endpointMode,
             normalizeChatContent = normalizeChatContent,
+            streamChatCompletions = streamChatCompletions,
             hostedWebSearchEnabled = hostedWebSearchEnabled,
         )
         is CustomProviderSetting -> source.copy(
@@ -653,6 +669,7 @@ private fun buildUpdatedProvider(
             isEnabled = isEnabled,
             endpointMode = endpointMode,
             normalizeChatContent = normalizeChatContent,
+            streamChatCompletions = streamChatCompletions,
             hostedWebSearchEnabled = hostedWebSearchEnabled,
         )
         is AnthropicProviderSetting -> source.copy(

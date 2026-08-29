@@ -41,6 +41,32 @@ class OpenAiChatCompletionsProviderTest {
     }
 
     @Test
+    fun completeParsesReasoningAliasUsedByCompatibleProviders() {
+        val body = buildString {
+            append(sseChunk(JSONObject().put("reasoning", "兼容推理")))
+            append(sseChunk(JSONObject().put("content", "结果"), finishReason = "stop"))
+            append("data: [DONE]\n\n")
+        }
+
+        withSseServer(body) { baseUrl ->
+            val events = mutableListOf<ProviderEvent>()
+            val response = OpenAiChatCompletionsProvider.complete(
+                request = providerRequest(baseUrl),
+                runController = AgentRunController(),
+                onEvent = events::add,
+            )
+
+            assertEquals("兼容推理", response.assistantMessage.getString("reasoning_content"))
+            assertEquals(
+                "兼容推理",
+                events.filterIsInstance<ProviderEvent.BlockDelta>()
+                    .filter { it.kind == AssistantBlockKind.THINKING }
+                    .joinToString("") { it.delta },
+            )
+        }
+    }
+
+    @Test
     fun completeSplitsVisibleBlocksWhenDeltaTypeChanges() {
         val body = buildString {
             append(sseChunk(JSONObject().put("reasoning_content", "先分析")))
@@ -387,6 +413,57 @@ class OpenAiChatCompletionsProviderTest {
     }
 
     @Test
+    fun completeParsesNonStreamingReasoningAlias() {
+        val responseBody = JSONObject()
+            .put("choices", JSONArray().put(
+                JSONObject()
+                    .put("message", JSONObject()
+                        .put("role", "assistant")
+                        .put("content", JSONObject.NULL)
+                        .put("reasoning", "兼容推理"))
+                    .put("finish_reason", "length")
+            ))
+            .toString()
+
+        withSseServer(responseBody) { baseUrl ->
+            val response = OpenAiChatCompletionsProvider.complete(
+                request = providerRequest(baseUrl) { it.copy(streamChatCompletions = false) },
+                runController = AgentRunController(),
+            )
+
+            assertEquals("兼容推理", response.assistantMessage.getString("reasoning_content"))
+        }
+    }
+
+    @Test
+    fun completeParsesNonStreamingResponseWhenProviderStreamingIsDisabled() {
+        val responseBody = JSONObject()
+            .put("choices", JSONArray().put(
+                JSONObject()
+                    .put("message", JSONObject()
+                        .put("role", "assistant")
+                        .put("content", "OK"))
+                    .put("finish_reason", "stop")
+            ))
+            .toString()
+        val requestBody = AtomicReference<String>()
+
+        withSseServer(responseBody, onRequest = requestBody::set) { baseUrl ->
+            val response = OpenAiChatCompletionsProvider.complete(
+                request = providerRequest(baseUrl) {
+                    it.copy(streamChatCompletions = false)
+                },
+                runController = AgentRunController(),
+            )
+
+            val sentRequest = JSONObject(requestBody.get())
+            assertEquals(false, sentRequest.getBoolean("stream"))
+            assertEquals(false, sentRequest.has("stream_options"))
+            assertEquals("OK", response.assistantMessage.getString("content"))
+        }
+    }
+
+    @Test
     fun completeParsesNonStreamingResponseWhenStreamIsDisabledByCustomBody() {
         val responseBody = JSONObject()
             .put("choices", JSONArray().put(
@@ -522,10 +599,7 @@ class OpenAiChatCompletionsProviderTest {
             normalizeContent = true,
         )
 
-        val content = messages.getJSONObject(0).getJSONArray("content")
-        assertEquals(1, content.length())
-        assertEquals("text", content.getJSONObject(0).getString("type"))
-        assertEquals("第一段\n第二段", content.getJSONObject(0).getString("text"))
+        assertEquals("第一段\n第二段", messages.getJSONObject(0).getString("content"))
     }
 
 }
