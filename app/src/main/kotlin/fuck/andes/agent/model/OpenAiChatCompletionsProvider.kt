@@ -40,9 +40,11 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             "Responses API 已预留配置位，但当前运行时仅支持 Chat Completions"
         }
         val url = ProviderUrls.openAiChatCompletionsUrl(config.baseUrl)
+        val requestJson = buildRequestJson(config, request.messages, request.tools)
+        val streaming = requestJson.optBoolean("stream", true)
         val headers = okhttp3.Headers.Builder()
             .add("Content-Type", "application/json; charset=utf-8")
-            .add("Accept", "text/event-stream")
+            .add("Accept", if (streaming) "text/event-stream" else "application/json")
             .apply {
                 if (config.apiKey.isNotBlank()) {
                     add("Authorization", "Bearer ${config.apiKey}")
@@ -51,9 +53,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             .also { CustomHeaderFilter.mergeInto(it, config.customHeaders) }
             .build()
 
-        val requestBody = buildRequestJson(config, request.messages, request.tools)
-            .toString()
-            .toRequestBody(JSON_MEDIA_TYPE)
+        val requestBody = requestJson.toString().toRequestBody(JSON_MEDIA_TYPE)
 
         val httpRequest = Request.Builder()
             .url(url)
@@ -78,7 +78,11 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
                     error("模型接口返回 HTTP $code：${errorBody.compactError()}")
                 }
 
-                val assistantMessage = readStreamingAssistantMessage(response.body.byteStream(), runController, onEvent)
+                val assistantMessage = if (streaming) {
+                    readStreamingAssistantMessage(response.body.byteStream(), runController, onEvent)
+                } else {
+                    readNonStreamingAssistantMessage(response.body.string(), runController, onEvent)
+                }
                 onEvent(ProviderEvent.Completed(assistantMessage.optString("finish_reason").ifBlank { null }))
                 return ProviderResponse(assistantMessage)
             }
@@ -117,8 +121,68 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
                 }
                 mergeExtraBody(request, config.extraBodyJson)
                 RequestBodyMerge.mergeCustomBody(request, config.customBody)
+                if (!request.optBoolean("stream", true)) {
+                    request.remove("stream_options")
+                }
                 ProviderReasoning.applyOpenAiCompatibleRequest(request, config)
             }
+    }
+
+    private fun readNonStreamingAssistantMessage(
+        body: String,
+        runController: AgentRunController,
+        onEvent: (ProviderEvent) -> Unit,
+    ): JSONObject {
+        runController.throwIfCancelled()
+        val root = JSONObject(body)
+        throwStreamingErrorIfPresent(root)
+        val choice = root.optJSONArray("choices")?.optJSONObject(0)
+            ?: error("模型接口未返回 choices[0]")
+        val source = choice.optJSONObject("message")
+            ?: error("模型接口未返回 assistant message")
+        val content = source.optString("content")
+        val reasoning = source.optString("reasoning_content")
+        var contentIndex = 0
+
+        fun emit(kind: AssistantBlockKind, text: String) {
+            if (text.isEmpty()) return
+            val index = contentIndex++
+            onEvent(ProviderEvent.BlockStart(kind, index))
+            onEvent(ProviderEvent.BlockDelta(kind, index, text))
+            onEvent(ProviderEvent.BlockEnd(kind, index, content = text))
+        }
+        emit(AssistantBlockKind.THINKING, reasoning)
+        emit(AssistantBlockKind.TEXT, content)
+
+        val toolCalls = source.optJSONArray("tool_calls")
+        if (toolCalls != null) {
+            for (position in 0 until toolCalls.length()) {
+                val call = toolCalls.optJSONObject(position) ?: continue
+                val function = call.optJSONObject("function")
+                val arguments = function?.optString("arguments").orEmpty()
+                val index = contentIndex++
+                onEvent(ProviderEvent.BlockStart(AssistantBlockKind.TOOL_CALL, index))
+                if (arguments.isNotEmpty()) {
+                    onEvent(ProviderEvent.BlockDelta(AssistantBlockKind.TOOL_CALL, index, arguments))
+                }
+                onEvent(ProviderEvent.BlockEnd(
+                    kind = AssistantBlockKind.TOOL_CALL,
+                    index = index,
+                    blockId = call.optString("id").ifBlank { null },
+                    name = function?.optString("name")?.ifBlank { null },
+                    content = arguments,
+                ))
+            }
+        }
+
+        val usage = parseUsage(root)
+        usage?.let { onEvent(ProviderEvent.Usage(it)) }
+        return JSONObject(source.toString())
+            .put("role", "assistant")
+            .put("content", content)
+            .put("reasoning_content", reasoning)
+            .put("finish_reason", choice.optString("finish_reason"))
+            .also { message -> usage?.let { message.put("usage", it.toJson()) } }
     }
 
     private fun readStreamingAssistantMessage(

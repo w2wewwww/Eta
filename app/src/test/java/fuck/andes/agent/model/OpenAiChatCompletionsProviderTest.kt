@@ -386,6 +386,55 @@ class OpenAiChatCompletionsProviderTest {
         }
     }
 
+    @Test
+    fun completeParsesNonStreamingResponseWhenStreamIsDisabledByCustomBody() {
+        val responseBody = JSONObject()
+            .put("choices", JSONArray().put(
+                JSONObject()
+                    .put("message", JSONObject()
+                        .put("role", "assistant")
+                        .put("reasoning_content", "分析")
+                        .put("content", "完成")
+                        .put("tool_calls", JSONArray().put(
+                            JSONObject()
+                                .put("id", "call_1")
+                                .put("type", "function")
+                                .put("function", JSONObject()
+                                    .put("name", "echo")
+                                    .put("arguments", "{\"value\":\"ok\"}"))
+                        )))
+                    .put("finish_reason", "tool_calls")
+            ))
+            .put("usage", JSONObject()
+                .put("prompt_tokens", 10)
+                .put("completion_tokens", 4)
+                .put("total_tokens", 14))
+            .toString()
+        val requestBody = AtomicReference<String>()
+
+        withSseServer(responseBody, onRequest = requestBody::set) { baseUrl ->
+            val events = mutableListOf<ProviderEvent>()
+            val response = OpenAiChatCompletionsProvider.complete(
+                request = providerRequest(baseUrl) {
+                    it.copy(extraBodyJson = """{"stream":false}""")
+                },
+                runController = AgentRunController(),
+                onEvent = events::add,
+            )
+
+            val sentRequest = JSONObject(requestBody.get())
+            assertEquals(false, sentRequest.getBoolean("stream"))
+            assertEquals(false, sentRequest.has("stream_options"))
+            assertEquals("完成", response.assistantMessage.getString("content"))
+            assertEquals("分析", response.assistantMessage.getString("reasoning_content"))
+            assertEquals("tool_calls", response.assistantMessage.getString("finish_reason"))
+            assertEquals("echo", response.assistantMessage
+                .getJSONArray("tool_calls").getJSONObject(0)
+                .getJSONObject("function").getString("name"))
+            assertEquals(14, events.filterIsInstance<ProviderEvent.Usage>().single().usage.contextTokens)
+        }
+    }
+
     private fun providerRequest(
         baseUrl: String,
         configTransform: (AgentModelClient.ModelConfig) -> AgentModelClient.ModelConfig = { it }
