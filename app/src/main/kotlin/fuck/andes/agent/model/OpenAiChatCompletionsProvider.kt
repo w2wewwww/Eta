@@ -42,7 +42,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         }
         val url = ProviderUrls.openAiChatCompletionsUrl(config.baseUrl)
         val requestJson = buildRequestJson(config, request.messages, request.tools)
-        logRequestDiagnostic(requestJson)
+        logFullRequest(requestJson)
         val streaming = requestJson.optBoolean("stream", true)
         val headers = okhttp3.Headers.Builder()
             .add("Content-Type", "application/json; charset=utf-8")
@@ -77,13 +77,16 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
 
                 if (!response.isSuccessful) {
                     val errorBody = response.body.string()
+                    logFullResponse(code, errorBody)
                     error("模型接口返回 HTTP $code：${errorBody.compactError()}")
                 }
 
                 val assistantMessage = if (streaming) {
-                    readStreamingAssistantMessage(response.body.byteStream(), runController, onEvent)
+                    readStreamingAssistantMessage(response.body.byteStream(), code, runController, onEvent)
                 } else {
-                    readNonStreamingAssistantMessage(response.body.string(), runController, onEvent)
+                    val responseBody = response.body.string()
+                    logFullResponse(code, responseBody)
+                    readNonStreamingAssistantMessage(responseBody, runController, onEvent)
                 }
                 onEvent(ProviderEvent.Completed(assistantMessage.optString("finish_reason").ifBlank { null }))
                 return ProviderResponse(assistantMessage)
@@ -130,41 +133,13 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             }
     }
 
-    /** Logs request shape only; message text, URLs, API keys and tool schemas are never emitted. */
-    private fun logRequestDiagnostic(request: JSONObject) {
-        val messages = request.optJSONArray("messages")
-        val summary = buildString {
-            if (messages != null) {
-                for (index in 0 until messages.length()) {
-                    if (isNotEmpty()) append(", ")
-                    val message = messages.optJSONObject(index)
-                    val role = message?.optString("role").orEmpty().ifBlank { "<missing>" }
-                    append('#').append(index).append(':').append(role).append('=')
-                    when (val content = message?.opt("content")) {
-                        null, JSONObject.NULL -> append("null")
-                        is String -> append("string(len=").append(content.length).append(')')
-                        is JSONArray -> {
-                            append("array[")
-                            for (partIndex in 0 until content.length()) {
-                                if (partIndex > 0) append('|')
-                                val part = content.opt(partIndex)
-                                when (part) {
-                                    is JSONObject -> append(part.optString("type").ifBlank { "<missing>" })
-                                    else -> append(part?.javaClass?.simpleName ?: "null")
-                                }
-                            }
-                            append(']')
-                        }
-                        else -> append(content.javaClass.simpleName)
-                    }
-                }
-            }
-        }
-        AndroidAgentLogger.info(
-            "OpenAI chat request diagnostic: stream=${request.optBoolean("stream", true)}, " +
-                "messages=${messages?.length() ?: 0}, tools=${request.optJSONArray("tools")?.length() ?: 0}, " +
-                "content=[$summary]"
-        )
+    /** Full diagnostic records are intentionally local Logcat output. */
+    private fun logFullRequest(request: JSONObject) {
+        AndroidAgentLogger.info("OpenAI chat request JSON: ${request.toString()}")
+    }
+
+    private fun logFullResponse(code: Int, body: String) {
+        AndroidAgentLogger.info("OpenAI chat response: http_code=$code, body=$body")
     }
 
     private fun readNonStreamingAssistantMessage(
@@ -227,6 +202,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
 
     private fun readStreamingAssistantMessage(
         stream: java.io.InputStream?,
+        responseCode: Int,
         runController: AgentRunController,
         onEvent: (ProviderEvent) -> Unit
     ): JSONObject {
@@ -238,6 +214,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         var sawStreamData = false
         var sawDone = false
         var finishReason: String? = null
+        val rawSseResponse = StringBuilder()
         var nextContentIndex = 0
         var activeVisibleBlock: StreamingVisibleBlock? = null
 
@@ -274,6 +251,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             while (true) {
                 runController.throwIfCancelled()
                 val line = reader.readLine() ?: break
+                rawSseResponse.append(line).append('\n')
                 if (!line.startsWith("data:")) continue
                 sawStreamData = true
                 val payload = line.removePrefix("data:").trim()
@@ -355,6 +333,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             }
         }
 
+        logFullResponse(responseCode, rawSseResponse.toString())
         if (!sawStreamData) error("模型接口未返回 SSE data chunk")
         if (!sawDone && finishReason == null) error("模型接口 SSE 流未正常结束")
 
