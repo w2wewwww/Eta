@@ -21,16 +21,34 @@ internal object OpenAiRequestMessages {
             for (index in 0 until source.length()) {
                 val message = source.optJSONObject(index) ?: continue
                 if (message.optString("role") !in SYSTEM_ROLES) {
-                    messages.put(if (normalizeContent) normalizeChatContent(message) else message)
+                    // Chat Completions does not accept Responses API's input_text/output_text
+                    // part names. Canonicalize them even when the optional strict-server
+                    // flattening switch is off: historical transcripts can contain them.
+                    messages.put(normalizeChatContent(message, flatten = normalizeContent))
                 }
             }
         }
     }
 
-    private fun normalizeChatContent(message: JSONObject): JSONObject {
+    private fun normalizeChatContent(message: JSONObject, flatten: Boolean): JSONObject {
         val content = message.opt("content")
         if (content !is JSONArray) return message
-        return JSONObject(message.toString()).put("content", providerMessageText(content))
+        if (flatten) {
+            return JSONObject(message.toString()).put("content", providerMessageText(content))
+        }
+        var changed = false
+        val canonical = JSONArray()
+        for (index in 0 until content.length()) {
+            val part = content.opt(index)
+            val objectPart = part as? JSONObject
+            if (objectPart?.optString("type") in RESPONSES_ONLY_TEXT_TYPES) {
+                canonical.put(JSONObject(objectPart.toString()).put("type", "text"))
+                changed = true
+            } else {
+                canonical.put(part)
+            }
+        }
+        return if (changed) JSONObject(message.toString()).put("content", canonical) else message
     }
 
     fun responsesInstructions(source: JSONArray): String =
@@ -49,5 +67,6 @@ internal object OpenAiRequestMessages {
         }.joinToString("\n\n")
 
     private val SYSTEM_ROLES = setOf("system")
+    private val RESPONSES_ONLY_TEXT_TYPES = setOf("input_text", "output_text")
     private val RESPONSES_INSTRUCTION_ROLES = setOf("system", "developer")
 }

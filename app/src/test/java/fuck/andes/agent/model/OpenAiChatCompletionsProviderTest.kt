@@ -602,4 +602,21 @@ class OpenAiChatCompletionsProviderTest {
         assertEquals("第一段\n第二段", messages.getJSONObject(0).getString("content"))
     }
 
+    @Test
+    fun requestCanonicalizesResponsesOnlyTextPartTypesWithoutStrictFlattening() {
+        val source = JSONArray().put(
+            JSONObject().put("role", "user").put("content", JSONArray()
+                .put(JSONObject().put("type", "input_text").put("text", "hello"))
+                .put(JSONObject().put("type", "image_url").put("image_url", JSONObject().put("url", "https://example.test/a.png")))
+            )
+        )
+
+        val message = OpenAiRequestMessages.forChatCompletions(source, normalizeContent = false)
+            .getJSONObject(0)
+        val content = message.getJSONArray("content")
+        assertEquals("text", content.getJSONObject(0).getString("type"))
+        assertEquals("hello", content.getJSONObject(0).getString("text"))
+        assertEquals("image_url", content.getJSONObject(1).getString("type"))
+    }
+
 }

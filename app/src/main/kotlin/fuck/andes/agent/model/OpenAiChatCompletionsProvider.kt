@@ -2,6 +2,7 @@ package fuck.andes.agent.model
 
 import fuck.andes.agent.runtime.AgentRunController
 import fuck.andes.agent.runtime.AgentTokenUsage
+import fuck.andes.core.AndroidAgentLogger
 import fuck.andes.data.model.OpenAiEndpointMode
 import fuck.andes.data.model.ProviderSourceTypes
 import fuck.andes.data.provider.ProviderSourceRegistry
@@ -41,6 +42,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         }
         val url = ProviderUrls.openAiChatCompletionsUrl(config.baseUrl)
         val requestJson = buildRequestJson(config, request.messages, request.tools)
+        logRequestDiagnostic(requestJson)
         val streaming = requestJson.optBoolean("stream", true)
         val headers = okhttp3.Headers.Builder()
             .add("Content-Type", "application/json; charset=utf-8")
@@ -126,6 +128,43 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
                 }
                 ProviderReasoning.applyOpenAiCompatibleRequest(request, config)
             }
+    }
+
+    /** Logs request shape only; message text, URLs, API keys and tool schemas are never emitted. */
+    private fun logRequestDiagnostic(request: JSONObject) {
+        val messages = request.optJSONArray("messages")
+        val summary = buildString {
+            if (messages != null) {
+                for (index in 0 until messages.length()) {
+                    if (isNotEmpty()) append(", ")
+                    val message = messages.optJSONObject(index)
+                    val role = message?.optString("role").orEmpty().ifBlank { "<missing>" }
+                    append('#').append(index).append(':').append(role).append('=')
+                    when (val content = message?.opt("content")) {
+                        null, JSONObject.NULL -> append("null")
+                        is String -> append("string(len=").append(content.length).append(')')
+                        is JSONArray -> {
+                            append("array[")
+                            for (partIndex in 0 until content.length()) {
+                                if (partIndex > 0) append('|')
+                                val part = content.opt(partIndex)
+                                when (part) {
+                                    is JSONObject -> append(part.optString("type").ifBlank { "<missing>" })
+                                    else -> append(part?.javaClass?.simpleName ?: "null")
+                                }
+                            }
+                            append(']')
+                        }
+                        else -> append(content.javaClass.simpleName)
+                    }
+                }
+            }
+        }
+        AndroidAgentLogger.info(
+            "OpenAI chat request diagnostic: stream=${request.optBoolean("stream", true)}, " +
+                "messages=${messages?.length() ?: 0}, tools=${request.optJSONArray("tools")?.length() ?: 0}, " +
+                "content=[$summary]"
+        )
     }
 
     private fun readNonStreamingAssistantMessage(
