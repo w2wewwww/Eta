@@ -15,7 +15,9 @@ import java.nio.charset.StandardCharsets
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import okhttp3.Headers
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -71,6 +73,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             .headers(headers)
             .post(requestBody)
             .build()
+        logRequestMetadata(httpRequest, requestJson.toString().toByteArray(StandardCharsets.UTF_8).size)
 
         val call = AgentHttpClient.client.newCall(httpRequest)
         val binding = runController.register { call.cancel() }
@@ -81,6 +84,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
 
             call.execute().use { response ->
                 val code = response.code
+                logResponseMetadata(response.protocol, code, response.headers)
                 onEvent(ProviderEvent.ResponseHeaders(code))
                 runController.throwIfCancelled()
 
@@ -148,6 +152,40 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
      */
     private fun logFullRequest(request: JSONObject) {
         appendDiagnostic("request", request.toString())
+    }
+
+    /**
+     * Records the final request object after OkHttp has applied its defaults. Authorization is
+     * deliberately redacted; request/response bodies remain in their separate local files.
+     */
+    private fun logRequestMetadata(request: Request, bodyUtf8Bytes: Int) {
+        val metadata = JSONObject()
+            .put("url", request.url.toString())
+            .put("method", request.method)
+            .put("body_utf8_bytes", bodyUtf8Bytes)
+            .put("body_content_type", request.body?.contentType()?.toString())
+            .put("headers", safeHeaders(request.headers))
+        appendDiagnostic("request-meta", metadata.toString())
+    }
+
+    private fun logResponseMetadata(protocol: Protocol, code: Int, headers: Headers) {
+        val metadata = JSONObject()
+            .put("protocol", protocol.toString())
+            .put("http_code", code)
+            .put("headers", safeHeaders(headers))
+        appendDiagnostic("response-meta-http-$code", metadata.toString())
+    }
+
+    private fun safeHeaders(headers: Headers): JSONObject = JSONObject().also { result ->
+        for (index in 0 until headers.size) {
+            val name = headers.name(index)
+            val value = if (name.equals("Authorization", ignoreCase = true)) {
+                "<redacted>"
+            } else {
+                headers.value(index)
+            }
+            result.put(name, value)
+        }
     }
 
     private fun logFullResponse(code: Int, body: String) {
