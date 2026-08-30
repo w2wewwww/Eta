@@ -23,6 +23,8 @@ data class Model(
     val reasoningCapabilitiesOverride: ModelReasoningCapabilities? = null,
     val structuredOutput: Boolean? = null,
     val supportsTemperature: Boolean? = null,
+    /** null follows the provider default; otherwise overrides it for this model. */
+    val normalizeChatContentOverride: Boolean? = null,
     val customHeaders: List<CustomHeader> = emptyList(),
     val customBody: List<CustomBody> = emptyList(),
     val source: ModelSource = ModelSource.MANUAL,

@@ -72,4 +72,34 @@ class RuntimeConfigRepositoryTest {
                 .modelRequestRetries,
         )
     }
+
+    @Test
+    fun modelContentFormatOverrideTakesPrecedenceOverProviderDefault() {
+        val provider = OpenAiCompatibleProviderSetting(
+            id = "p1",
+            name = "Provider",
+            baseUrl = "https://api.example.com/v1",
+            normalizeChatContent = true,
+        )
+
+        assertEquals(
+            true,
+            RuntimeConfigRepository.buildRuntimeConfig(
+                provider,
+                Model(id = "inherit", modelId = "inherit", displayName = "Inherit"),
+            ).normalizeChatContent,
+        )
+        assertEquals(
+            false,
+            RuntimeConfigRepository.buildRuntimeConfig(
+                provider,
+                Model(
+                    id = "string",
+                    modelId = "string",
+                    displayName = "String",
+                    normalizeChatContentOverride = false,
+                ),
+            ).normalizeChatContent,
+        )
+    }
 }

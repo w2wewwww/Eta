@@ -85,6 +85,8 @@ internal data class ProviderModelEntity(
     val reasoningCapabilitiesOverrideJson: String = "null",
     @ColumnInfo(name = "structured_output") val structuredOutput: Boolean?,
     @ColumnInfo(name = "supports_temperature") val supportsTemperature: Boolean?,
+    @ColumnInfo(name = "normalize_chat_content_override")
+    val normalizeChatContentOverride: Boolean?,
     @ColumnInfo(name = "custom_headers_json") val customHeadersJson: String,
     @ColumnInfo(name = "custom_body_json") val customBodyJson: String,
     val source: String,
@@ -241,6 +243,7 @@ private fun Model.toEntity(providerId: String): ProviderModelEntity =
         ),
         structuredOutput = structuredOutput,
         supportsTemperature = supportsTemperature,
+        normalizeChatContentOverride = normalizeChatContentOverride,
         customHeadersJson = ProviderJson.encodeHeaders(customHeaders),
         customBodyJson = ProviderJson.encodeBody(customBody),
         source = source.name.lowercase(),
@@ -274,6 +277,7 @@ private fun ProviderModelEntity.toDomain(): Model =
         ),
         structuredOutput = structuredOutput,
         supportsTemperature = supportsTemperature,
+        normalizeChatContentOverride = normalizeChatContentOverride,
         customHeaders = ProviderJson.decodeHeaders(customHeadersJson),
         customBody = ProviderJson.decodeBody(customBodyJson),
         source = runCatching { ModelSource.valueOf(source.uppercase()) }.getOrDefault(

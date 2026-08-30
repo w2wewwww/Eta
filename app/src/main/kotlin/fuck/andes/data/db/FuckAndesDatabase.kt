@@ -23,7 +23,7 @@ import androidx.room.migration.Migration
         SkillRegistryEntity::class,
         McpServerEntity::class,
     ],
-    version = 20,
+    version = 21,
     exportSchema = false,
 )
 internal abstract class FuckAndesDatabase : RoomDatabase() {
@@ -59,6 +59,7 @@ internal abstract class FuckAndesDatabase : RoomDatabase() {
                         MIGRATION_17_18,
                         MIGRATION_18_19,
                         MIGRATION_19_20,
+                        MIGRATION_20_21,
                     )
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
@@ -111,6 +112,12 @@ internal abstract class FuckAndesDatabase : RoomDatabase() {
 
         internal val MIGRATION_19_20 = Migration(19, 20) { database ->
             database.execSQL("ALTER TABLE model_providers ADD COLUMN stream_chat_completions INTEGER NOT NULL DEFAULT 1")
+        }
+
+        internal val MIGRATION_20_21 = Migration(20, 21) { database ->
+            database.execSQL(
+                "ALTER TABLE provider_models ADD COLUMN normalize_chat_content_override INTEGER"
+            )
         }
 
         internal val MIGRATION_7_8 = Migration(7, 8) { database ->

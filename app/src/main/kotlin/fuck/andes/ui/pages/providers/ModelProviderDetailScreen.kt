@@ -342,8 +342,8 @@ private fun ProviderConfigTab(
                         )
                         HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                         SwitchPreference(
-                            title = "兼容内容补丁",
-                            summary = "将 content 内容块数组扁平化为字符串，适用于仅接受字符串内容的兼容接口；启用后图片不会随该请求发送。",
+                            title = "文本内容块格式",
+                            summary = "将消息文本转换为 [{type: text, text: ...}] 格式。可在模型编辑页为单个模型覆盖此设置。",
                             checked = draft.normalizeChatContent,
                             onCheckedChange = { onDraftChange(draft.copy(normalizeChatContent = it)) },
                         )

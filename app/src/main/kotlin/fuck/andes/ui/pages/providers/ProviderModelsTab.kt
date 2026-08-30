@@ -71,6 +71,7 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults
+import top.yukonga.miuix.kmp.basic.DropdownItem
 import top.yukonga.miuix.kmp.basic.Checkbox
 import top.yukonga.miuix.kmp.basic.HorizontalDivider
 import top.yukonga.miuix.kmp.basic.Icon
@@ -86,6 +87,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.CheckboxLocation
 import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.preference.WindowSpinnerPreference
 import top.yukonga.miuix.kmp.squircle.squircleSurface
 import top.yukonga.miuix.kmp.theme.LocalContentColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -740,6 +742,9 @@ private fun ModelEditDialog(
     var contextWindowOverrideText by remember(model.id, isNew) {
         mutableStateOf(model.contextWindowOverride?.toString().orEmpty())
     }
+    var normalizeChatContentOverride by remember(model.id, isNew) {
+        mutableStateOf(model.normalizeChatContentOverride)
+    }
     var reasoningOverrideActive by remember(model.id, isNew) {
         mutableStateOf(
             model.reasoningOverride != null || model.reasoningCapabilitiesOverride != null
@@ -776,6 +781,7 @@ private fun ModelEditDialog(
         contextWindowOverride = contextWindowOverrideText.trim()
             .takeIf(String::isNotEmpty)
             ?.toInt(),
+        normalizeChatContentOverride = normalizeChatContentOverride,
         reasoningOverride = reasoningEnabled.takeIf { reasoningOverrideActive },
         reasoningCapabilitiesOverride = if (reasoningOverrideActive && reasoningEnabled) {
             val canDisable = ReasoningEffort.OFF in selectedReasoningEfforts
@@ -880,6 +886,32 @@ private fun ModelEditDialog(
                     modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
                 )
                 Card(modifier = Modifier.fillMaxWidth()) {
+                    WindowSpinnerPreference(
+                        items = listOf(
+                            DropdownItem(text = "跟随提供商"),
+                            DropdownItem(text = "标准格式（不转换）"),
+                            DropdownItem(text = "内容块数组 content"),
+                        ),
+                        selectedIndex = when (normalizeChatContentOverride) {
+                            null -> 0
+                            false -> 1
+                            true -> 2
+                        },
+                        title = "Chat content 格式",
+                        summary = when (normalizeChatContentOverride) {
+                            null -> "使用提供商的 content 格式设置"
+                            false -> "本模型不转换消息 content"
+                            true -> "本模型将文本转换为内容块数组"
+                        },
+                        onSelectedIndexChange = { index ->
+                            normalizeChatContentOverride = when (index) {
+                                1 -> false
+                                2 -> true
+                                else -> null
+                            }
+                        },
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
                     SwitchPreference(
                         checked = reasoningEnabled,
                         onCheckedChange = { enabled ->

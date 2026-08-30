@@ -51,6 +51,9 @@ class FuckAndesDatabaseMigrationTest {
                 FuckAndesDatabase.MIGRATION_15_16,
                 migration16To17WithMcpData,
                 FuckAndesDatabase.MIGRATION_17_18,
+                FuckAndesDatabase.MIGRATION_18_19,
+                FuckAndesDatabase.MIGRATION_19_20,
+                FuckAndesDatabase.MIGRATION_20_21,
             )
             .build()
         try {
@@ -116,6 +119,7 @@ class FuckAndesDatabaseMigrationTest {
             assertEquals(null, provider.models.first().contextWindowOverride)
             assertEquals(null, provider.models.first().reasoningOverride)
             assertEquals(null, provider.models.first().reasoningCapabilitiesOverride)
+            assertEquals(null, provider.models.first().normalizeChatContentOverride)
             assertEquals(
                 listOf(ModelSource.CATALOG, ModelSource.MANUAL),
                 provider.models.map { it.source },
