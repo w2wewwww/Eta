@@ -1,5 +1,6 @@
 package fuck.andes.agent.model
 
+import fuck.andes.agent.runtime.AgentAppContext
 import fuck.andes.agent.runtime.AgentRunController
 import fuck.andes.agent.runtime.AgentTokenUsage
 import fuck.andes.core.AndroidAgentLogger
@@ -7,7 +8,13 @@ import fuck.andes.data.model.OpenAiEndpointMode
 import fuck.andes.data.model.ProviderSourceTypes
 import fuck.andes.data.provider.ProviderSourceRegistry
 import java.io.BufferedReader
+import java.io.File
+import java.io.FileOutputStream
 import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -16,6 +23,8 @@ import org.json.JSONObject
 
 internal object OpenAiChatCompletionsProvider : AgentProviderClient {
     private const val MAX_ERROR_CHARS = 600
+    private const val DIAGNOSTIC_DIRECTORY = "diagnostics/openai-chat"
+    private val diagnosticTimestamp = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US)
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
     override val id: String = "openai_chat_completions"
@@ -133,13 +142,43 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             }
     }
 
-    /** Full diagnostic records are intentionally local Logcat output. */
+    /**
+     * Persists full, unredacted wire records for local debugging. Logcat only receives the path
+     * and byte count because Android truncates long log entries.
+     */
     private fun logFullRequest(request: JSONObject) {
-        AndroidAgentLogger.info("OpenAI chat request JSON: ${request.toString()}")
+        appendDiagnostic("request", request.toString())
     }
 
     private fun logFullResponse(code: Int, body: String) {
-        AndroidAgentLogger.info("OpenAI chat response: http_code=$code, body=$body")
+        appendDiagnostic("response-http-$code", body)
+    }
+
+    private fun appendDiagnostic(kind: String, body: String) {
+        val context = AgentAppContext.resolve()
+        if (context == null) {
+            AndroidAgentLogger.warn("OpenAI chat diagnostic unavailable: application context missing")
+            return
+        }
+        runCatching {
+            val directory = File(context.filesDir, DIAGNOSTIC_DIRECTORY)
+            if (!directory.isDirectory && !directory.mkdirs()) {
+                error("Unable to create diagnostics directory")
+            }
+            val timestamp = diagnosticTimestamp.format(Date())
+            val target = File(directory, "openai-chat-$timestamp-$kind.jsonl")
+            FileOutputStream(target, true).bufferedWriter(StandardCharsets.UTF_8).use { writer ->
+                writer.append(body)
+                if (!body.endsWith('\n')) writer.newLine()
+            }
+            AndroidAgentLogger.info(
+                "OpenAI chat diagnostic saved: path=${target.absolutePath}, bytes=${body.toByteArray(Charsets.UTF_8).size}"
+            )
+        }.onFailure { throwable ->
+            AndroidAgentLogger.warn(
+                "OpenAI chat diagnostic write failed: ${throwable.javaClass.simpleName}"
+            )
+        }
     }
 
     private fun readNonStreamingAssistantMessage(
