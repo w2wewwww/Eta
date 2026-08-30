@@ -66,14 +66,18 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
             .also { CustomHeaderFilter.mergeInto(it, config.customHeaders) }
             .build()
 
-        val requestBody = requestJson.toString().toRequestBody(JSON_MEDIA_TYPE)
+        // String.toRequestBody() appends charset=utf-8 when the media type has no charset.
+        // This endpoint rejects that parameter, so preserve the deliberately bare media type by
+        // encoding JSON ourselves and using the ByteArray overload.
+        val requestBytes = requestJson.toString().toByteArray(StandardCharsets.UTF_8)
+        val requestBody = requestBytes.toRequestBody(JSON_MEDIA_TYPE)
 
         val httpRequest = Request.Builder()
             .url(url)
             .headers(headers)
             .post(requestBody)
             .build()
-        logRequestMetadata(httpRequest, requestJson.toString().toByteArray(StandardCharsets.UTF_8).size)
+        logRequestMetadata(httpRequest, requestBytes.size)
 
         val call = AgentHttpClient.client.newCall(httpRequest)
         val binding = runController.register { call.cancel() }
