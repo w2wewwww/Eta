@@ -25,7 +25,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
     private const val MAX_ERROR_CHARS = 600
     private const val DIAGNOSTIC_DIRECTORY = "diagnostics/openai-chat"
     private val diagnosticTimestamp = SimpleDateFormat("yyyyMMdd-HHmmss-SSS", Locale.US)
-    private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
     override val id: String = "openai_chat_completions"
 
@@ -54,7 +54,7 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         logFullRequest(requestJson)
         val streaming = requestJson.optBoolean("stream", true)
         val headers = okhttp3.Headers.Builder()
-            .add("Content-Type", "application/json; charset=utf-8")
+            .add("Content-Type", "application/json")
             .add("Accept", if (streaming) "text/event-stream" else "application/json")
             .apply {
                 if (config.apiKey.isNotBlank()) {
