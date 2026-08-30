@@ -464,6 +464,7 @@ private fun ProviderConfigTab(
                                 isEnabled = draft.isEnabled,
                                 endpointMode = draft.endpointMode,
                                 normalizeChatContent = draft.normalizeChatContent,
+                                streamChatCompletions = draft.streamChatCompletions,
                                 hostedWebSearchEnabled = draft.hostedWebSearchEnabled,
                                 anthropicVersion = draft.anthropicVersion,
                             )
