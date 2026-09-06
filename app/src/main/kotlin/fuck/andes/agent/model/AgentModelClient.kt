@@ -207,6 +207,11 @@ internal object AgentModelClient {
          * 该字段时由 kotlinx.serialization 使用默认值，保持原先固定 5 次重试的行为。
          */
         val modelRequestRetries: Int = DEFAULT_MODEL_REQUEST_RETRIES,
+        /**
+         * Agent Runtime 单次执行的总超时（分钟）。旧版配置缺少该字段时由
+         * kotlinx.serialization 使用默认值，保持原先固定 30 分钟的行为。
+         */
+        val runTimeoutMinutes: Int = DEFAULT_RUN_TIMEOUT_MINUTES,
         val contextWindow: Int? = null,
         val systemPrompt: String,
         val anthropicVersion: String = AnthropicProviderSetting.DEFAULT_ANTHROPIC_VERSION,
@@ -230,6 +235,9 @@ internal object AgentModelClient {
             require(modelRequestRetries in 0..MAX_MODEL_REQUEST_RETRIES) {
                 "模型请求重试次数必须在 0-$MAX_MODEL_REQUEST_RETRIES 之间"
             }
+            require(runTimeoutMinutes in Prefs.MIN_RUN_TIMEOUT_MINUTES..Prefs.MAX_RUN_TIMEOUT_MINUTES) {
+                "运行超时必须在 ${Prefs.MIN_RUN_TIMEOUT_MINUTES}-${Prefs.MAX_RUN_TIMEOUT_MINUTES} 分钟之间"
+            }
         }
 
         val effectiveReasoningEffort: ReasoningEffort
@@ -238,6 +246,8 @@ internal object AgentModelClient {
         companion object {
             const val DEFAULT_MODEL_REQUEST_RETRIES = Prefs.DEFAULT_MODEL_REQUEST_RETRIES
             const val MAX_MODEL_REQUEST_RETRIES = Prefs.MAX_MODEL_REQUEST_RETRIES
+            const val DEFAULT_RUN_TIMEOUT_MINUTES = Prefs.DEFAULT_RUN_TIMEOUT_MINUTES
+            const val MAX_RUN_TIMEOUT_MINUTES = Prefs.MAX_RUN_TIMEOUT_MINUTES
         }
     }
 

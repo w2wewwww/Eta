@@ -946,6 +946,11 @@
   <string name="settings_model_request_retries_summary">模型请求失败后自动重试 %1$d 次（不含首次请求）</string>
   <string name="settings_model_request_retries_dialog_summary">可设置 0 到 10 次。设置为 0 将关闭自动重试。</string>
   <string name="settings_model_request_retries_input_label">重试次数</string>
+  <string name="settings_run_timeout_minutes">Agent 运行超时时间</string>
+  <string name="settings_run_timeout_minutes_summary">Agent 运行超过 %1$d 分钟后自动取消并提示超时</string>
+  <string name="settings_run_timeout_minutes_dialog_summary">可设置 1 到 240 分钟。超过该时长后运行会被取消并提示超时。</string>
+  <string name="settings_run_timeout_minutes_input_label">超时分钟数</string>
+  <string name="settings_run_timeout_minutes_value">%1$d 分钟</string>
   <string name="skills_replace">替换</string>
   <string name="skills_delete_summary">删除“%1$s”后需要重新安装才能恢复。</string>
   <string name="skills_no_description">无描述</string>

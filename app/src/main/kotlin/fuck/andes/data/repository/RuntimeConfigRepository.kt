@@ -121,6 +121,7 @@ internal object RuntimeConfigRepository {
             modelDisplayName = model.displayName.trim(),
             // 重试次数是 Eta Runtime 的全局本地配置，随运行时配置一并下发到入口进程。
             modelRequestRetries = Prefs.modelRequestRetries(),
+            runTimeoutMinutes = Prefs.runTimeoutMinutes(),
             contextWindow = model.effectiveContextWindow,
             systemPrompt = systemPrompt,
             anthropicVersion = (provider as? AnthropicProviderSetting)?.anthropicVersion

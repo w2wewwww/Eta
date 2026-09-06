@@ -961,6 +961,11 @@
   <string name="settings_model_request_retries_summary">Retry failed model requests %1$d times (excluding the initial request)</string>
   <string name="settings_model_request_retries_dialog_summary">Set a value from 0 to 10. Zero disables automatic retries.</string>
   <string name="settings_model_request_retries_input_label">Retry count</string>
+  <string name="settings_run_timeout_minutes">Agent run timeout</string>
+  <string name="settings_run_timeout_minutes_summary">Cancel the run after %1$d minutes of execution</string>
+  <string name="settings_run_timeout_minutes_dialog_summary">Set a value from 1 to 240 minutes. When the limit is reached, the run is cancelled and reported as timed out.</string>
+  <string name="settings_run_timeout_minutes_input_label">Timeout in minutes</string>
+  <string name="settings_run_timeout_minutes_value">%1$d min</string>
   <string name="skills_replace">Replace</string>
   <string name="skills_delete_summary">After deleting “%1$s”, you will need to reinstall it to restore it.</string>
   <string name="skills_no_description">No description</string>

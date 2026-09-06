@@ -6,6 +6,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.Message
 import android.os.Messenger
+import fuck.andes.config.Prefs
 import fuck.andes.core.AgentLogger
 import fuck.andes.core.safeLogType
 import java.util.concurrent.CountDownLatch
@@ -42,6 +43,7 @@ internal class AgentRuntimeClient(
         request: AgentRuntimeWire.RunRequest,
         onEvent: (AgentEvent) -> Unit
     ): AgentRuntimeWire.RunResult {
+        val runTimeoutMinutes = request.config.runTimeoutMinutes.coerceAtLeast(1).toLong()
         val resultLatch = CountDownLatch(1)
         val resultRef = AtomicReference<AgentRuntimeWire.RunResult?>()
         val preparedImagesRef = AtomicReference<AgentRuntimeImageTransfer.PreparedImages?>()
@@ -78,7 +80,7 @@ internal class AgentRuntimeClient(
             preparedImagesRef.set(preparedImages)
             msg.data = AgentRuntimeWire.toBundle(request, preparedImages.images)
             serviceMessenger.send(msg)
-            if (!resultLatch.await(RUN_TIMEOUT_MINUTES, TimeUnit.MINUTES)) {
+            if (!resultLatch.await(runTimeoutMinutes, TimeUnit.MINUTES)) {
                 runCatching {
                     val cancelMessage = Message.obtain(null, AgentRuntimeWire.MSG_CANCEL)
                     cancelMessage.data = AgentRuntimeWire.ackBundle(request.runId)
@@ -88,7 +90,7 @@ internal class AgentRuntimeClient(
                     runId = request.runId,
                     ok = false,
                     content = "",
-                    error = "Agent Runtime 执行超时",
+                    error = "Agent Runtime 执行超时（$runTimeoutMinutes 分钟）",
                 )
             }
             return resultRef.get() ?: AgentRuntimeWire.RunResult("", false, "", "Agent Runtime 未返回结果")
@@ -316,6 +318,6 @@ internal class AgentRuntimeClient(
 
     private companion object {
         const val RESPONSE_TIMEOUT_SECONDS = 8L
-        const val RUN_TIMEOUT_MINUTES = 30L
+        const val RUN_TIMEOUT_MINUTES = Prefs.DEFAULT_RUN_TIMEOUT_MINUTES.toLong()
     }
 }

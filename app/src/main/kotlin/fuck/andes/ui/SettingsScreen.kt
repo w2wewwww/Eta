@@ -156,11 +156,18 @@ internal fun SettingsScreen(
     }
     var showModelRequestRetriesDialog by remember { mutableStateOf(false) }
     var modelRequestRetriesInput by remember { mutableStateOf("") }
+    var runTimeoutMinutes by remember(agentPrefs) {
+        mutableIntStateOf(Prefs.runTimeoutMinutes(agentPrefs))
+    }
+    var showRunTimeoutDialog by remember { mutableStateOf(false) }
+    var runTimeoutInput by remember { mutableStateOf("") }
     DisposableEffect(agentPrefs) {
         val targetPrefs = agentPrefs ?: return@DisposableEffect onDispose {}
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { changedPrefs, key ->
             if (key == Prefs.Keys.AGENT_MODEL_REQUEST_RETRIES) {
                 modelRequestRetries = Prefs.modelRequestRetries(changedPrefs)
+            } else if (key == Prefs.Keys.AGENT_RUN_TIMEOUT_MINUTES) {
+                runTimeoutMinutes = Prefs.runTimeoutMinutes(changedPrefs)
             }
         }
         targetPrefs.registerOnSharedPreferenceChangeListener(listener)
@@ -183,6 +190,26 @@ internal fun SettingsScreen(
         modelRequestRetries = normalized
         // Keep the local preference as the source of truth and refresh the serialized runtime
         // config used by assistant hook processes when the framework is available.
+        Prefs.reconcileAgentPreferences(FuckAndesApp.serviceInstance)
+        coroutineScope.launch(Dispatchers.IO) {
+            RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
+        }
+    }
+    fun commitRunTimeoutMinutes(value: Int) {
+        val targetPrefs = agentPrefs ?: return
+        val normalized = value.coerceIn(
+            Prefs.MIN_RUN_TIMEOUT_MINUTES,
+            Prefs.MAX_RUN_TIMEOUT_MINUTES,
+        )
+        if (!putIntSync(targetPrefs, Prefs.Keys.AGENT_RUN_TIMEOUT_MINUTES, normalized)) {
+            Toast.makeText(
+                context.applicationContext,
+                context.getString(R.string.settings_write_failed),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        runTimeoutMinutes = normalized
         Prefs.reconcileAgentPreferences(FuckAndesApp.serviceInstance)
         coroutineScope.launch(Dispatchers.IO) {
             RuntimeConfigRepository.syncToRemotePreferences(FuckAndesApp.serviceInstance)
@@ -286,6 +313,36 @@ internal fun SettingsScreen(
                             showModelRequestRetriesDialog = true
                         },
                         holdDownState = showModelRequestRetriesDialog,
+                        enabled = agentPrefs != null,
+                    )
+                    PrefDivider()
+                    ArrowPreference(
+                        title = stringResource(R.string.settings_run_timeout_minutes),
+                        summary = stringResource(
+                            R.string.settings_run_timeout_minutes_summary,
+                            runTimeoutMinutes,
+                        ),
+                        startAction = {
+                            TintedIcon(
+                                icon = LucideR.drawable.lucide_ic_clock,
+                                tint = ColorOSRoyalBlue,
+                            )
+                        },
+                        endActions = {
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_run_timeout_minutes_value,
+                                    runTimeoutMinutes,
+                                ),
+                                fontSize = MiuixTheme.textStyles.body2.fontSize,
+                                color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            )
+                        },
+                        onClick = {
+                            runTimeoutInput = runTimeoutMinutes.toString()
+                            showRunTimeoutDialog = true
+                        },
+                        holdDownState = showRunTimeoutDialog,
                         enabled = agentPrefs != null,
                     )
                 }
@@ -745,6 +802,38 @@ internal fun SettingsScreen(
                     onConfirm = {
                         parsedModelRequestRetries?.let(::commitModelRequestRetries)
                         showModelRequestRetriesDialog = false
+                    },
+                    modifier = Modifier.padding(top = 16.dp),
+                )
+            }
+        }
+
+        val parsedRunTimeoutMinutes = runTimeoutInput.toIntOrNull()
+        WindowDialog(
+            show = showRunTimeoutDialog,
+            title = stringResource(R.string.settings_run_timeout_minutes),
+            summary = stringResource(R.string.settings_run_timeout_minutes_dialog_summary),
+            onDismissRequest = { showRunTimeoutDialog = false },
+        ) {
+            Column {
+                TextField(
+                    value = runTimeoutInput,
+                    onValueChange = { value ->
+                        runTimeoutInput = value.filter(Char::isDigit).take(3)
+                    },
+                    label = stringResource(R.string.settings_run_timeout_minutes_input_label),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                MiuixDialogActions(
+                    confirmText = stringResource(R.string.action_confirm),
+                    confirmEnabled = parsedRunTimeoutMinutes != null &&
+                        parsedRunTimeoutMinutes in Prefs.MIN_RUN_TIMEOUT_MINUTES..Prefs.MAX_RUN_TIMEOUT_MINUTES,
+                    onCancel = { showRunTimeoutDialog = false },
+                    onConfirm = {
+                        parsedRunTimeoutMinutes?.let(::commitRunTimeoutMinutes)
+                        showRunTimeoutDialog = false
                     },
                     modifier = Modifier.padding(top = 16.dp),
                 )

@@ -87,6 +87,7 @@ internal object AgentRuntimeWire {
     private const val KEY_MODEL = "model"
     private const val KEY_MODEL_DISPLAY_NAME = "model_display_name"
     private const val KEY_MODEL_REQUEST_RETRIES = "model_request_retries"
+    private const val KEY_RUN_TIMEOUT_MINUTES = "run_timeout_minutes"
     private const val KEY_CONTEXT_WINDOW = "context_window"
     private const val KEY_SYSTEM_PROMPT = "system_prompt"
     private const val KEY_ANTHROPIC_VERSION = "anthropic_version"
@@ -252,6 +253,7 @@ internal object AgentRuntimeWire {
         putString(KEY_MODEL, request.config.model)
         putString(KEY_MODEL_DISPLAY_NAME, request.config.modelDisplayName)
         putInt(KEY_MODEL_REQUEST_RETRIES, request.config.modelRequestRetries)
+        putInt(KEY_RUN_TIMEOUT_MINUTES, request.config.runTimeoutMinutes)
         request.config.contextWindow?.let { putInt(KEY_CONTEXT_WINDOW, it) }
         putString(KEY_SYSTEM_PROMPT, request.config.systemPrompt)
         putString(KEY_ANTHROPIC_VERSION, request.config.anthropicVersion)
@@ -370,6 +372,10 @@ internal object AgentRuntimeWire {
                 modelRequestRetries = bundle.getInt(
                     KEY_MODEL_REQUEST_RETRIES,
                     AgentModelClient.ModelConfig.DEFAULT_MODEL_REQUEST_RETRIES,
+                ),
+                runTimeoutMinutes = bundle.getInt(
+                    KEY_RUN_TIMEOUT_MINUTES,
+                    AgentModelClient.ModelConfig.DEFAULT_RUN_TIMEOUT_MINUTES,
                 ),
                 contextWindow = bundle.optionalInt(KEY_CONTEXT_WINDOW),
                 systemPrompt = bundle.getString(KEY_SYSTEM_PROMPT).orEmpty(),

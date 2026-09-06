@@ -24,6 +24,11 @@ internal object Prefs {
     const val MIN_MODEL_REQUEST_RETRIES = 0
     const val MAX_MODEL_REQUEST_RETRIES = 10
 
+    /** Agent Runtime 单次执行的总超时（分钟）；入口进程等待超时后取消运行。 */
+    const val DEFAULT_RUN_TIMEOUT_MINUTES = 30
+    const val MIN_RUN_TIMEOUT_MINUTES = 1
+    const val MAX_RUN_TIMEOUT_MINUTES = 240
+
     /** 远程配置组名，UI 写入与 Hook 读取必须一致。 */
     const val GROUP = "fuck_andes_prefs"
 
@@ -49,6 +54,7 @@ internal object Prefs {
         const val AGENT_DEVICE_SENSITIVE_ACTION_TOOLS = "agent_device_sensitive_action_tools"
         const val AGENT_THINKING_ENABLED = "agent_thinking_enabled"
         const val AGENT_MODEL_REQUEST_RETRIES = "agent_model_request_retries"
+        const val AGENT_RUN_TIMEOUT_MINUTES = "agent_run_timeout_minutes"
         const val AGENT_RUNTIME_CONFIG_JSON = "agent_runtime_config_json"
 
         /** 全部布尔开关及其默认值。 */
@@ -83,6 +89,7 @@ internal object Prefs {
         /** 由 Eta Runtime 最终裁决的数值配置。 */
         val LOCAL_AGENT_INTEGER_KEYS: Set<String> = setOf(
             AGENT_MODEL_REQUEST_RETRIES,
+            AGENT_RUN_TIMEOUT_MINUTES,
         )
     }
 
@@ -142,6 +149,18 @@ internal object Prefs {
         }.getOrDefault(DEFAULT_MODEL_REQUEST_RETRIES).coerceIn(
             MIN_MODEL_REQUEST_RETRIES,
             MAX_MODEL_REQUEST_RETRIES,
+        )
+    }
+
+    /** 读取 Agent Runtime 单次执行超时（分钟），并限制在受支持范围内。 */
+    fun runTimeoutMinutes(preferences: SharedPreferences? = null): Int {
+        val source = preferences ?: localAgent ?: remote
+        return runCatching {
+            source?.getInt(Keys.AGENT_RUN_TIMEOUT_MINUTES, DEFAULT_RUN_TIMEOUT_MINUTES)
+                ?: DEFAULT_RUN_TIMEOUT_MINUTES
+        }.getOrDefault(DEFAULT_RUN_TIMEOUT_MINUTES).coerceIn(
+            MIN_RUN_TIMEOUT_MINUTES,
+            MAX_RUN_TIMEOUT_MINUTES,
         )
     }
 
