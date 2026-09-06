@@ -20,6 +20,7 @@ internal object ModuleConfig {
     const val SECURE_VOICE_INTERACTION_SERVICE = "voice_interaction_service"
     const val SYSTEM_UI_PACKAGE = "com.android.systemui"
     const val COLOR_DIRECT_PACKAGE = "com.coloros.colordirectservice"
+    const val OPSYNERGY_PACKAGE = "com.oplus.linker"
 
     const val CONTEXTUAL_SEARCH_ACTION = "android.app.contextualsearch.action.LAUNCH_CONTEXTUAL_SEARCH"
     const val CONTEXTUAL_SEARCH_SERVICE = "contextual_search"

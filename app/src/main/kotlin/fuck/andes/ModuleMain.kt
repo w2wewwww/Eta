@@ -15,6 +15,7 @@ import fuck.andes.hook.breeno.BreenoHooks
 import fuck.andes.hook.colordirect.ColorDirectHooks
 import fuck.andes.hook.google.GoogleAppHooks
 import fuck.andes.hook.google.GoogleEligibilityHooks
+import fuck.andes.hook.opsynergy.OpsynergyHooks
 import fuck.andes.hook.system.SystemServerHooks
 import fuck.andes.hook.system.SystemUiHooks
 import fuck.andes.hook.xiaoai.XiaoAiHooks
@@ -73,6 +74,12 @@ class ModuleMain : XposedModule() {
                 }
             }
 
+            ModuleConfig.OPSYNERGY_PACKAGE -> {
+                if (isCurrentPackageProcess(ModuleConfig.OPSYNERGY_PACKAGE)) {
+                    recordInstallation(OpsynergyHooks.install(this, logger, param.classLoader))
+                }
+            }
+
             ModuleConfig.COLOR_DIRECT_PACKAGE -> {
                 if (isCurrentPackageProcess(ModuleConfig.COLOR_DIRECT_PACKAGE)) {
                     recordInstallation(ColorDirectHooks.install(this, logger, param.classLoader))
@@ -121,6 +128,7 @@ class ModuleMain : XposedModule() {
         return processName == ModuleConfig.SYSTEM_UI_PACKAGE ||
             isPackageProcess(processName, ModuleConfig.GOOGLE_PACKAGE) ||
             isPackageProcess(processName, ModuleConfig.COLOR_DIRECT_PACKAGE) ||
+            isPackageProcess(processName, ModuleConfig.OPSYNERGY_PACKAGE) ||
             isPackageProcess(processName, ModuleConfig.BREENO_PACKAGE) ||
             processName == ModuleConfig.COLOROS_MEMORY_PACKAGE ||
             processName == ModuleConfig.XIAOAI_PACKAGE ||
