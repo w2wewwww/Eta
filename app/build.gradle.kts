@@ -30,8 +30,8 @@ android {
         applicationId = "fuck.andes"
         minSdk = 34
         targetSdk = 36
-        versionCode = 267
-        versionName = "2.6.7"
+        versionCode = 268
+        versionName = "2.6.8"
     }
 
     signingConfigs {

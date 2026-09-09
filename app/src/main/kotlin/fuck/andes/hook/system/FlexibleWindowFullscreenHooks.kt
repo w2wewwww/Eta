@@ -8,9 +8,10 @@ import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
 
 /**
- * ColorOS 在 maxWinNum >= 2 时会将 Launcher 的普通启动带入 flexible task
- * 选项复用链路。仅拦截桌面图标发起、且并非显式浮窗的启动，复用 ROM 已定义的
- * "force fullscreen" 分支（reason = 3），不改动多浮窗数量和已存在浮窗的管理逻辑。
+ * ColorOS 在 maxWinNum >= 2 时会让多种 Activity 启动入口复用 flexible task
+ * 选项。对常规应用启动统一走 ROM 已定义的“force fullscreen”分支（reason = 3），
+ * 避免桌面、通知、最近任务、分享和应用内跳转分别落入不同的小窗路径。
+ * Home\/Recents 与已有分屏任务不干预。
  */
 internal object FlexibleWindowFullscreenHooks {
     private const val FLEXIBLE_TASK_CONTROLLER =
@@ -21,10 +22,7 @@ internal object FlexibleWindowFullscreenHooks {
 
     private const val ARG_OPTIONS = 0
     private const val ARG_START_ACTIVITY = 2
-    private const val ARG_LAUNCH_FROM_ZOOM = 5
-    private const val ARG_REQUEST = 7
-
-    private const val LAUNCH_SOURCE_LAUNCHER = 2
+    private const val ARG_TARGET_TASK = 3
     private const val REASON_FORCE_FULLSCREEN = 3
 
     fun install(
@@ -41,7 +39,7 @@ internal object FlexibleWindowFullscreenHooks {
             val method = controllerClass?.let(::findIsAllowedToAdjustOptions)
             if (method == null) {
                 hooks.missing(
-                    id = "system.flexible-window-launcher-fullscreen",
+                    id = "system.flexible-window-fullscreen",
                     description = "FlexibleTaskController.isAllowedToAdjustOptions",
                     detail = "未找到 ColorOS 16 的 8 参数 isAllowedToAdjustOptions(...)",
                 )
@@ -64,13 +62,12 @@ internal object FlexibleWindowFullscreenHooks {
                 "FlexibleTaskController.isAllowedToAdjustOptions",
             )
             hooks.intercept(
-                id = "system.flexible-window-launcher-fullscreen",
+                id = "system.flexible-window-fullscreen",
                 executable = method,
-                description = "Launcher 普通启动强制全屏",
+                description = "所有常规应用启动强制全屏",
             ) { chain ->
-                if (!isPlainLauncherLaunch(chain.getThisObject(), chain)) {
-                    return@intercept chain.proceed()
-                }
+                if (!isRegularAppLaunch(chain)) return@intercept chain.proceed()
+
                 val options = chain.getArg(ARG_OPTIONS)
                 if (options != null) runCatching { resetZoomOptions.invoke(null, options) }
                 REASON_FORCE_FULLSCREEN
@@ -96,30 +93,27 @@ internal object FlexibleWindowFullscreenHooks {
         return HookSupport.findMethod(utilsClass, "resetZoomOptions", optionsClass)
     }
 
-    /** Mirrors FlexibleTaskController.isStartFromLauncher on the inspected ColorOS build. */
-    private fun isPlainLauncherLaunch(
-        controller: Any?,
+    /**
+     * isAllowedToAdjustOptions is called after all launch origins have been normalized.
+     * Exclude system navigation and an existing split task; every ordinary Activity start
+     * receives the same fullscreen policy regardless of caller process or Zoom flags.
+     */
+    private fun isRegularAppLaunch(
         chain: io.github.libxposed.api.XposedInterface.Chain,
     ): Boolean {
-        if (controller == null || chain.getArg(ARG_LAUNCH_FROM_ZOOM) == true) return false
         val startActivity = chain.getArg(ARG_START_ACTIVITY) ?: return false
-        if (!isLauncherSourceType(startActivity)) return false
+        if (isHomeOrRecents(startActivity)) return false
 
-        val request = chain.getArg(ARG_REQUEST) ?: return false
-        val realCallingPid = HookSupport.getFieldValue(request, "realCallingPid") as? Int
-            ?: return false
-        val atms = HookSupport.getFieldValue(controller, "mAtms") ?: return false
-        val homeProcess = HookSupport.getFieldValue(atms, "mHomeProcess") ?: return false
-        val homePid = HookSupport.getFieldValue(homeProcess, "mPid") as? Int ?: return false
-        return homePid > 0 && homePid == realCallingPid
+        val targetTask = chain.getArg(ARG_TARGET_TASK)
+        return targetTask == null || !isInMultiWindowMode(targetTask)
     }
 
-    private fun isLauncherSourceType(activityRecord: Any): Boolean = runCatching {
-        val method = HookSupport.findMethod(
-            activityRecord.javaClass,
-            "isLaunchSourceType",
-            Int::class.javaPrimitiveType!!,
-        ) ?: return@runCatching false
-        method.invoke(activityRecord, LAUNCH_SOURCE_LAUNCHER) as? Boolean ?: false
-    }.getOrDefault(false)
+    private fun isHomeOrRecents(activityRecord: Any): Boolean =
+        (HookSupport.invokeNoArgs(activityRecord, "isActivityTypeHomeOrRecents") as? Boolean)
+            ?: true
+
+    private fun isInMultiWindowMode(task: Any): Boolean =
+        (HookSupport.invokeNoArgs(task, "inMultiWindowMode") as? Boolean)
+            ?: false
+
 }
