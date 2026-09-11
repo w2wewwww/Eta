@@ -19,6 +19,7 @@ internal object ModuleConfig {
     const val SECURE_ASSISTANT = "assistant"
     const val SECURE_VOICE_INTERACTION_SERVICE = "voice_interaction_service"
     const val SYSTEM_UI_PACKAGE = "com.android.systemui"
+    const val LAUNCHER_PACKAGE = "com.android.launcher"
     const val COLOR_DIRECT_PACKAGE = "com.coloros.colordirectservice"
     const val OPSYNERGY_PACKAGE = "com.oplus.linker"
 

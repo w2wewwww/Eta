@@ -14,6 +14,7 @@ import fuck.andes.hook.aimemory.ColorOsMemoryHooks
 import fuck.andes.hook.breeno.BreenoHooks
 import fuck.andes.hook.colordirect.ColorDirectHooks
 import fuck.andes.hook.google.GoogleAppHooks
+import fuck.andes.hook.launcher.SuperPowerSaveHooks
 import fuck.andes.hook.google.GoogleEligibilityHooks
 import fuck.andes.hook.opsynergy.OpsynergyHooks
 import fuck.andes.hook.system.SystemServerHooks
@@ -54,6 +55,12 @@ class ModuleMain : XposedModule() {
 
     override fun onPackageReady(param: PackageReadyParam) {
         when (param.packageName) {
+            ModuleConfig.LAUNCHER_PACKAGE -> {
+                if (isCurrentPackageProcess(ModuleConfig.LAUNCHER_PACKAGE)) {
+                    recordInstallation(SuperPowerSaveHooks.install(this, logger, param.classLoader))
+                }
+            }
+
             ModuleConfig.SYSTEM_UI_PACKAGE -> {
                 if (currentProcessName == ModuleConfig.SYSTEM_UI_PACKAGE) {
                     recordInstallation(SystemUiHooks.install(this, logger, param.classLoader))
@@ -125,7 +132,8 @@ class ModuleMain : XposedModule() {
     private fun shouldKeepLifecycleCallbacks(param: ModuleLoadedParam): Boolean {
         if (param.isSystemServer) return true
         val processName = param.processName
-        return processName == ModuleConfig.SYSTEM_UI_PACKAGE ||
+        return processName == ModuleConfig.LAUNCHER_PACKAGE ||
+            processName == ModuleConfig.SYSTEM_UI_PACKAGE ||
             isPackageProcess(processName, ModuleConfig.GOOGLE_PACKAGE) ||
             isPackageProcess(processName, ModuleConfig.COLOR_DIRECT_PACKAGE) ||
             isPackageProcess(processName, ModuleConfig.OPSYNERGY_PACKAGE) ||
