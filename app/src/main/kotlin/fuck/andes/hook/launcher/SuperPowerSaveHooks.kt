@@ -2,7 +2,6 @@ package fuck.andes.hook.launcher
 
 import android.content.ComponentName
 import android.content.Context
-import android.os.UserHandle
 import fuck.andes.core.HookInstallation
 import fuck.andes.core.HookRegistrar
 import fuck.andes.core.HookSupport
@@ -153,8 +152,9 @@ internal object SuperPowerSaveHooks {
         val output = JSONArray()
         for (item in items) {
             val component = item?.let(::targetComponent) ?: continue
-            val user = item.let { HookSupport.getFieldValue(it, "user") as? UserHandle } ?: continue
-            output.put(JSONObject().put("packageName", component.packageName).put("user", user.identifier))
+            val user = item.let { HookSupport.getFieldValue(it, "user") } ?: continue
+            val identifier = HookSupport.invokeNoArgs(user, "getIdentifier") as? Int ?: continue
+            output.put(JSONObject().put("packageName", component.packageName).put("user", identifier))
         }
         return output.toString()
     }
