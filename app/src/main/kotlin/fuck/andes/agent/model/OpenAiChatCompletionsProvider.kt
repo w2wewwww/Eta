@@ -111,6 +111,9 @@ internal object OpenAiChatCompletionsProvider : AgentProviderClient {
         } catch (throwable: Throwable) {
             runCatching { runController.throwIfCancelled() }
                 .getOrElse { interruption -> throw interruption }
+            if (throwable is java.io.IOException) {
+                throw AgentHttpClient.networkFailure(httpRequest.url.toString(), throwable)
+            }
             throw throwable
         } finally {
             binding.close()
