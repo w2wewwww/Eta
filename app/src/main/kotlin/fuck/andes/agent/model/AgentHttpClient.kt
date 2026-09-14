@@ -24,7 +24,7 @@ internal object AgentHttpClient {
      * Some gateways reject Android's small modern cipher-suite ClientHello.
      * Keep the fallback limited to TLS 1.2/1.3; never re-enable obsolete TLS.
      */
-    private val TLS_12_PLUS_FALLBACK = ConnectionSpec.Builder(true)
+    private val TLS_12_PLUS_FALLBACK = ConnectionSpec.Builder(ConnectionSpec.MODERN_TLS)
         .allEnabledCipherSuites()
         .tlsVersions(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2)
         .build()
