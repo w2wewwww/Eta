@@ -5,10 +5,18 @@ import org.junit.Test
 
 class ProviderUrlsTest {
     @Test
-    fun migratesRetiredAnyRouterHostWithoutChangingPathOrOtherHosts() {
+    fun preservesConfiguredAnyRouterHost() {
         assertEquals(
-            "https://anyrouter.win/v1",
+            "https://ANYROUTER.TOP/v1",
             ProviderUrls.normalizeBaseUrl(" https://ANYROUTER.TOP/v1/ "),
+        )
+        assertEquals(
+            "https://anyrouter.top/v1/responses",
+            ProviderUrls.openAiResponsesUrl(" https://anyrouter.top/v1/ "),
+        )
+        assertEquals(
+            "https://anyrouter.win/v1/responses",
+            ProviderUrls.openAiResponsesUrl("https://anyrouter.win/v1"),
         )
         assertEquals(
             "https://api.anyrouter.top/v1",
@@ -43,7 +51,7 @@ class ProviderUrlsTest {
             ProviderUrls.anthropicModelsUrl("https://api.anthropic.com")
         )
         assertEquals(
-            "https://anyrouter.win/v1/chat/completions",
+            "https://anyrouter.top/v1/chat/completions",
             ProviderUrls.openAiChatCompletionsUrl("https://anyrouter.top/v1"),
         )
     }

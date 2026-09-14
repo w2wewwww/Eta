@@ -1,12 +1,16 @@
 package fuck.andes.agent.runtime
 
 import java.util.ArrayDeque
+import java.util.UUID
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
 internal class AgentRunController {
+    /** 同一 run 的模型重试与工具后续轮次共用，且不写入持久会话。 */
+    val requestSessionId: String = UUID.randomUUID().toString()
+
     private val resources = CopyOnWriteArraySet<CancellableResource>()
 
     @Volatile

@@ -8,6 +8,7 @@ internal object ResponsesRequestBuilder {
         config: AgentModelClient.ModelConfig,
         messages: JSONArray,
         tools: JSONArray,
+        promptCacheKey: String,
     ): JSONObject {
         val input = buildInput(messages)
         val responseTools = buildTools(tools, config.hostedWebSearchEnabled)
@@ -33,7 +34,25 @@ internal object ResponsesRequestBuilder {
         request.remove("previous_response_id")
         request.remove("reasoning")
         ProviderReasoning.applyResponsesRequest(request, config)
+        applyCodexDefaults(request, promptCacheKey)
         return request
+    }
+
+    private fun applyCodexDefaults(request: JSONObject, promptCacheKey: String) {
+        // Codex 转发入口需要完整的无状态请求字段，普通 Responses API 也支持这些字段。
+        if ((request.opt("prompt_cache_key") as? String).isNullOrBlank()) {
+            request.put("prompt_cache_key", promptCacheKey)
+        }
+        if (request.opt("parallel_tool_calls") !is Boolean) {
+            request.put("parallel_tool_calls", false)
+        }
+
+        // store=false 时需要保留加密推理供工具后续轮次重放，同时保留用户其他 include 项。
+        val include = request.optJSONArray("include") ?: JSONArray()
+        if ((0 until include.length()).none { include.optString(it) == "reasoning.encrypted_content" }) {
+            include.put("reasoning.encrypted_content")
+        }
+        request.put("include", include)
     }
 
     private fun buildInput(messages: JSONArray): JSONArray = JSONArray().also { input ->

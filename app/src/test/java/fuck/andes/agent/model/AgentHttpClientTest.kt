@@ -2,9 +2,9 @@ package fuck.andes.agent.model
 
 import java.io.IOException
 import javax.net.ssl.SSLHandshakeException
-import okhttp3.ConnectionSpec
 import okhttp3.TlsVersion
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -18,10 +18,8 @@ class AgentHttpClientTest {
             listOf(TlsVersion.TLS_1_3, TlsVersion.TLS_1_2),
             fallback.tlsVersions,
         )
-        assertTrue(
-            fallback.cipherSuites.orEmpty().size >
-                ConnectionSpec.MODERN_TLS.cipherSuites.orEmpty().size,
-        )
+        // OkHttp 用 null 表示使用当前 TLS socket 的全部已启用 cipher suites。
+        assertNull(fallback.cipherSuites)
     }
 
     @Test

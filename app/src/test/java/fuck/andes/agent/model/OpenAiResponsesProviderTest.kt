@@ -7,19 +7,116 @@ import fuck.andes.data.model.ModelReasoningCapabilities
 import fuck.andes.data.model.OpenAiEndpointMode
 import fuck.andes.data.model.ReasoningEffort
 import java.net.InetSocketAddress
+import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OpenAiResponsesProviderTest {
+    @Test
+    fun requestIncludesCodexDefaultsEvenWithoutTools() {
+        val request = OpenAiResponsesProvider.buildRequestJson(
+            config = config("https://anyrouter.top/v1"),
+            messages = JSONArray().put(JSONObject().put("role", "user").put("content", "Hello")),
+            tools = JSONArray(),
+        )
+
+        val cacheKey = request.getString("prompt_cache_key")
+        assertEquals(cacheKey, UUID.fromString(cacheKey).toString())
+        assertFalse(request.getBoolean("parallel_tool_calls"))
+        assertEquals("reasoning.encrypted_content", request.getJSONArray("include").getString(0))
+        assertFalse(request.getBoolean("store"))
+        assertTrue(request.getBoolean("stream"))
+        assertFalse(request.has("tools"))
+    }
+
+    @Test
+    fun requestPreservesCustomCodexValuesAndMergesEncryptedReasoningOnce() {
+        for (hasEncryptedReasoning in listOf(false, true)) {
+            val includes = mutableListOf(JsonPrimitive("web_search_call.action.sources"))
+            if (hasEncryptedReasoning) includes += JsonPrimitive("reasoning.encrypted_content")
+            val customBody = listOf(
+                CustomBody("prompt_cache_key", JsonPrimitive("user-cache-key")),
+                CustomBody("parallel_tool_calls", JsonPrimitive(true)),
+                CustomBody("include", JsonArray(includes)),
+            )
+            val request = OpenAiResponsesProvider.buildRequestJson(
+                config = config("https://example.com/v1").copy(
+                    extraBodyJson = """{"prompt_cache_key":"extra-cache-key","parallel_tool_calls":false}""",
+                    customBody = customBody,
+                ),
+                messages = JSONArray(),
+                tools = JSONArray(),
+                promptCacheKey = "run-cache-key",
+            )
+
+            assertEquals("user-cache-key", request.getString("prompt_cache_key"))
+            assertTrue(request.getBoolean("parallel_tool_calls"))
+            val include = request.getJSONArray("include")
+            assertEquals(2, include.length())
+            assertEquals("web_search_call.action.sources", include.getString(0))
+            assertEquals("reasoning.encrypted_content", include.getString(1))
+            assertEquals(if (hasEncryptedReasoning) 2 else 1, (customBody.last().value as JsonArray).size)
+        }
+    }
+
+    @Test
+    fun requestRepairsBlankAndInvalidCodexDefaults() {
+        for (cacheKey in listOf(JSONObject.NULL, "", "  ", 42, JSONObject(), JSONArray())) {
+            val request = OpenAiResponsesProvider.buildRequestJson(
+                config = config("https://example.com/v1").copy(
+                    extraBodyJson = JSONObject()
+                        .put("prompt_cache_key", cacheKey)
+                        .put("parallel_tool_calls", JSONObject.NULL)
+                        .put("include", JSONObject.NULL)
+                        .toString(),
+                ),
+                messages = JSONArray(),
+                tools = JSONArray(),
+                promptCacheKey = "run-cache-key",
+            )
+
+            assertEquals("run-cache-key", request.getString("prompt_cache_key"))
+            assertFalse(request.getBoolean("parallel_tool_calls"))
+            assertEquals("reasoning.encrypted_content", request.getJSONArray("include").getString(0))
+        }
+    }
+
+    @Test
+    fun completeReusesPromptCacheKeyOnlyWithinSameRun() {
+        val cacheKeys = mutableListOf<String>()
+        val body = event(
+            "response.completed",
+            JSONObject().put("response", JSONObject()
+                .put("status", "completed")
+                .put("output", JSONArray().put(messageItem("msg_1", "OK")))),
+        )
+        withSseServer(body, onRequest = { cacheKeys += JSONObject(it).getString("prompt_cache_key") }) { baseUrl ->
+            val controller = AgentRunController()
+            val request = ProviderRequest(config(baseUrl), JSONArray(), JSONArray())
+            repeat(2) {
+                val result = OpenAiResponsesProvider.complete(request, controller) {}
+                assertEquals("OK", result.assistantMessage.getString("content"))
+            }
+            OpenAiResponsesProvider.complete(request, AgentRunController()) {}
+
+            assertEquals(3, cacheKeys.size)
+            assertEquals(controller.requestSessionId, cacheKeys[0])
+            assertEquals(cacheKeys[0], cacheKeys[1])
+            assertNotEquals(cacheKeys[0], cacheKeys[2])
+        }
+    }
+
     @Test
     fun requestUsesTypedInputProtectedFieldsAndOptionalHostedSearch() {
         val assistant = JSONObject().put("role", "assistant").put("content", "先检查")

@@ -5,6 +5,7 @@ import fuck.andes.agent.runtime.AgentTokenUsage
 import fuck.andes.data.model.OpenAiEndpointMode
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.UUID
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -36,7 +37,12 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
         require(config.openAiEndpointMode == OpenAiEndpointMode.RESPONSES) {
             "当前 Provider 未配置为 Responses API"
         }
-        val body = buildRequestJson(config, request.messages, request.tools)
+        val body = buildRequestJson(
+            config,
+            request.messages,
+            request.tools,
+            promptCacheKey = runController.requestSessionId,
+        )
             .toString()
             .toRequestBody(JSON_MEDIA_TYPE)
         val headers = okhttp3.Headers.Builder()
@@ -88,7 +94,8 @@ internal object OpenAiResponsesProvider : AgentProviderClient {
         config: AgentModelClient.ModelConfig,
         messages: JSONArray,
         tools: JSONArray,
-    ): JSONObject = ResponsesRequestBuilder.build(config, messages, tools)
+        promptCacheKey: String = UUID.randomUUID().toString(),
+    ): JSONObject = ResponsesRequestBuilder.build(config, messages, tools, promptCacheKey)
 
     private fun readStreamingResponse(
         stream: java.io.InputStream?,

@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   build-apks:
-    name: 构建 Debug 与 Release APK
+    name: 验证请求兼容并构建 Debug APK
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -43,14 +43,31 @@ jobs:
       - name: 安装 Android SDK 37
         run: sdkmanager --channel=3 "platforms;android-37.0"
 
-      - name: 构建 Debug 与 Release APK
+      - name: 验证请求兼容并构建 Debug APK
         env:
           ETA_RELEASE_STORE_FILE: ${{ runner.temp }}/eta-release.jks
           ETA_RELEASE_STORE_PASSWORD: ${{ secrets.ETA_RELEASE_STORE_PASSWORD }}
           ETA_RELEASE_KEY_ALIAS: ${{ secrets.ETA_RELEASE_KEY_ALIAS }}
           ETA_RELEASE_KEY_PASSWORD: ${{ secrets.ETA_RELEASE_KEY_PASSWORD }}
         run: >-
-          ./gradlew --no-daemon --no-configuration-cache :app:assembleDebug
+          ./gradlew --no-daemon --no-configuration-cache
+          :app:testDebugUnitTest
+          --tests "fuck.andes.agent.model.OpenAiResponsesProviderTest"
+          --tests "fuck.andes.agent.model.ProviderUrlsTest"
+          --tests "fuck.andes.agent.model.AgentHttpClientTest"
+          --tests "fuck.andes.agent.runtime.AgentRunControllerTest"
+          :app:assembleDebug
+
+      - name: 上传兼容测试报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compatibility-tests
+          path: |
+            app/build/reports/tests/testDebugUnitTest/
+            app/build/test-results/testDebugUnitTest/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: 整理 Debug APK
         run: |
