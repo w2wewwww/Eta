@@ -20,7 +20,6 @@ internal object NotificationClickZoomHooks {
     private const val ROW =
         "com.android.systemui.statusbar.notification.row.ExpandableNotificationRow"
     private const val RESIZE_MODE = "androidx.flexible.ResizeMode"
-    private const val SUPPORTED_RESIZE_MODE = 4
     private const val ZOOM_ARG = 6
 
     fun install(
@@ -106,7 +105,7 @@ internal object NotificationClickZoomHooks {
                 parameters.size == 3 && parameters[0].isInstance(row) &&
                 parameters[1] == Boolean::class.javaPrimitiveType &&
                 parameters[2] == Boolean::class.javaPrimitiveType
-        }.singleOrNull() ?: return null
+        } ?: return null
         return try {
             method.invoke(rowExtension, row, true, false) as? Bundle
         } catch (_: ReflectiveOperationException) {
@@ -118,6 +117,7 @@ internal object NotificationClickZoomHooks {
 }
 
 internal object NotificationClickZoomPolicy {
+    private const val SUPPORTED_RESIZE_MODE = 4
     fun shouldCheckTarget(
         isActivity: Boolean,
         isBubble: Boolean,
