@@ -17,6 +17,7 @@ import fuck.andes.hook.google.GoogleAppHooks
 import fuck.andes.hook.launcher.SuperPowerSaveHooks
 import fuck.andes.hook.google.GoogleEligibilityHooks
 import fuck.andes.hook.opsynergy.OpsynergyHooks
+import fuck.andes.hook.system.NotificationClickZoomHooks
 import fuck.andes.hook.system.SystemServerHooks
 import fuck.andes.hook.system.SystemUiHooks
 import fuck.andes.hook.xiaoai.XiaoAiHooks
@@ -63,7 +64,15 @@ class ModuleMain : XposedModule() {
 
             ModuleConfig.SYSTEM_UI_PACKAGE -> {
                 if (currentProcessName == ModuleConfig.SYSTEM_UI_PACKAGE) {
-                    recordInstallation(SystemUiHooks.install(this, logger, param.classLoader))
+                    recordInstallation(
+                        HookInstallation.combine(
+                            group = "SystemUI",
+                            installations = listOf(
+                                SystemUiHooks.install(this, logger, param.classLoader),
+                                NotificationClickZoomHooks.install(this, logger, param.classLoader)
+                            )
+                        )
+                    )
                 }
             }
 
