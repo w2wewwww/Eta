@@ -22,7 +22,7 @@ internal object NotificationClickZoomHooks {
     private const val RESIZE_MODE = "androidx.flexible.ResizeMode"
     private const val ZOOM_CURRENT_SPEED_Y = "key_zoom_current_speed_y"
     private const val SHOW_OVER_LOCKSCREEN_ARG = 4
-    private const val ANIMATE_ARG = 5
+    private const val ANIMATE_ARG = 4
     private const val ZOOM_ARG = 6
 
     fun install(
