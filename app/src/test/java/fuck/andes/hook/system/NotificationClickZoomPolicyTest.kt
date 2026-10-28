@@ -29,7 +29,7 @@ class NotificationClickZoomPolicyTest {
     }
 
     @Test
-    fun supportedZoomLaunchEnablesAnimationAndZoomWithoutChangingLockscreenFlag() {
+    fun supportedZoomLaunchEnablesAnimationAndZoomWithoutChangingActivityFlag() {
         val args = arrayOfNulls<Any>(7)
         args[4] = false
         args[5] = false
