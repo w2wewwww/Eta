@@ -20,6 +20,7 @@ internal object NotificationClickZoomHooks {
     private const val ROW =
         "com.android.systemui.statusbar.notification.row.ExpandableNotificationRow"
     private const val RESIZE_MODE = "androidx.flexible.ResizeMode"
+    private const val ZOOM_CURRENT_SPEED_Y = "key_zoom_current_speed_y"
     private const val ZOOM_ARG = 6
 
     fun install(
@@ -82,17 +83,37 @@ internal object NotificationClickZoomHooks {
                     ?: return@intercept chain.proceed()
                 val bundle = calculateBounds(rowExtension, row)
                     ?: return@intercept chain.proceed()
-                if (!NotificationClickZoomPolicy.shouldPromote(
-                        isActivity = pendingIntent.isActivity,
-                        isBubble = isBubble,
-                        alreadyZoomPath = alreadyZoom,
-                        resizeMode = bundle.getInt(RESIZE_MODE, 0),
-                    )
-                ) return@intercept chain.proceed()
+                val tapExitVelocityY = NotificationClickZoomPolicy.tapExitVelocityY(
+                    isActivity = pendingIntent.isActivity,
+                    isBubble = isBubble,
+                    alreadyZoomPath = alreadyZoom,
+                    resizeMode = bundle.getInt(RESIZE_MODE, 0),
+                ) ?: return@intercept chain.proceed()
 
                 args[ZOOM_ARG] = true
-                hooks.logger.debug { "通知点击目标 ResizeMode=4，启用系统小窗启动参数" }
-                chain.proceed(args)
+                hooks.logger.debug { "通知点击目标 ResizeMode=4，启用系统小窗启动参数和上滑退出动画" }
+                withTapExitVelocity(entry, tapExitVelocityY) {
+                    chain.proceed(args)
+                }
+            }
+        }
+    }
+
+    private inline fun <T> withTapExitVelocity(entry: Any, velocityY: Float, block: () -> T): T {
+        val notification = HookSupport.invokeNoArgs(entry, "getSbn")
+            ?.let { HookSupport.invokeNoArgs(it, "getNotification") }
+        val extras = notification?.let { HookSupport.getFieldValue(it, "extras") as? Bundle }
+            ?: return block()
+        val hadPreviousValue = extras.containsKey(ZOOM_CURRENT_SPEED_Y)
+        val previousValue = extras.getFloat(ZOOM_CURRENT_SPEED_Y)
+        return try {
+            extras.putFloat(ZOOM_CURRENT_SPEED_Y, velocityY)
+            block()
+        } finally {
+            if (hadPreviousValue) {
+                extras.putFloat(ZOOM_CURRENT_SPEED_Y, previousValue)
+            } else {
+                extras.remove(ZOOM_CURRENT_SPEED_Y)
             }
         }
     }
@@ -118,6 +139,8 @@ internal object NotificationClickZoomHooks {
 
 internal object NotificationClickZoomPolicy {
     private const val SUPPORTED_RESIZE_MODE = 4
+    // ColorOS switches its native zoom spring to the faster response above 6000 px/s.
+    private const val TAP_EXIT_FLING_SPEED_Y = 6500f
     fun shouldCheckTarget(
         isActivity: Boolean,
         isBubble: Boolean,
@@ -132,4 +155,15 @@ internal object NotificationClickZoomPolicy {
     ): Boolean =
         shouldCheckTarget(isActivity, isBubble, alreadyZoomPath) &&
             resizeMode == SUPPORTED_RESIZE_MODE
+
+    fun tapExitVelocityY(
+        isActivity: Boolean,
+        isBubble: Boolean,
+        alreadyZoomPath: Boolean?,
+        resizeMode: Int,
+    ): Float? = if (shouldPromote(isActivity, isBubble, alreadyZoomPath, resizeMode)) {
+        TAP_EXIT_FLING_SPEED_Y
+    } else {
+        null
+    }
 }

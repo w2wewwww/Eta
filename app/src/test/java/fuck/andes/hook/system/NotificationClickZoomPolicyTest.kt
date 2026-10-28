@@ -18,6 +18,17 @@ class NotificationClickZoomPolicyTest {
     }
 
     @Test
+    fun supportedZoomTapUsesUpwardExitVelocityOnly() {
+        val velocityY = NotificationClickZoomPolicy.tapExitVelocityY(
+            isActivity = true,
+            isBubble = false,
+            alreadyZoomPath = false,
+            resizeMode = 4,
+        )
+        assertTrue(velocityY != null && velocityY >= 6000f)
+    }
+
+    @Test
     fun unsupportedTargetsKeepTheFullscreenPath() {
         listOf(0, 1, 3, 5).forEach { resizeMode ->
             assertFalse(
@@ -27,6 +38,14 @@ class NotificationClickZoomPolicyTest {
                     alreadyZoomPath = false,
                     resizeMode = resizeMode,
                 )
+            )
+            assertTrue(
+                NotificationClickZoomPolicy.tapExitVelocityY(
+                    isActivity = true,
+                    isBubble = false,
+                    alreadyZoomPath = false,
+                    resizeMode = resizeMode,
+                ) == null
             )
         }
     }
