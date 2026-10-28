@@ -21,8 +21,6 @@ internal object NotificationClickZoomHooks {
         "com.android.systemui.statusbar.notification.row.ExpandableNotificationRow"
     private const val RESIZE_MODE = "androidx.flexible.ResizeMode"
     private const val ZOOM_CURRENT_SPEED_Y = "key_zoom_current_speed_y"
-    private const val SHOW_OVER_LOCKSCREEN_ARG = 4
-    private const val ANIMATE_ARG = 4
     private const val ZOOM_ARG = 6
 
     fun install(
@@ -143,6 +141,10 @@ internal object NotificationClickZoomHooks {
 
 internal object NotificationClickZoomPolicy {
     private const val SUPPORTED_RESIZE_MODE = 4
+    // startNotificationIntent(..., showOverLockscreen, animate, flingZoom)
+    private const val SHOW_OVER_LOCKSCREEN_ARG = 4
+    private const val ANIMATE_ARG = 5
+    private const val ZOOM_ARG = 6
     // ColorOS switches its native zoom spring to the faster response above 6000 px/s.
     private const val TAP_EXIT_FLING_SPEED_Y = 6500f
     fun shouldCheckTarget(
@@ -161,7 +163,11 @@ internal object NotificationClickZoomPolicy {
             resizeMode == SUPPORTED_RESIZE_MODE
 
     fun promoteLaunchArguments(args: Array<Any?>): Boolean {
-        if (args.size <= 6) return false
+        if (args.size <= ZOOM_ARG ||
+            args[SHOW_OVER_LOCKSCREEN_ARG] !is Boolean ||
+            args[ANIMATE_ARG] !is Boolean ||
+            args[ZOOM_ARG] !is Boolean
+        ) return false
         args[ANIMATE_ARG] = true
         args[ZOOM_ARG] = true
         return true
