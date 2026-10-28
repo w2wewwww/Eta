@@ -21,6 +21,7 @@ internal object NotificationClickZoomHooks {
         "com.android.systemui.statusbar.notification.row.ExpandableNotificationRow"
     private const val RESIZE_MODE = "androidx.flexible.ResizeMode"
     private const val ZOOM_CURRENT_SPEED_Y = "key_zoom_current_speed_y"
+    private const val ANIMATE_ARG = 4
     private const val ZOOM_ARG = 6
 
     fun install(
@@ -90,8 +91,10 @@ internal object NotificationClickZoomHooks {
                     resizeMode = bundle.getInt(RESIZE_MODE, 0),
                 ) ?: return@intercept chain.proceed()
 
-                args[ZOOM_ARG] = true
-                hooks.logger.debug { "通知点击目标 ResizeMode=4，启用系统小窗启动参数和上滑退出动画" }
+                if (!NotificationClickZoomPolicy.promoteLaunchArguments(args)) {
+                    return@intercept chain.proceed()
+                }
+                hooks.logger.debug { "通知点击目标 ResizeMode=4，启用启动动画、小窗参数和上滑弹簧" }
                 withTapExitVelocity(entry, tapExitVelocityY) {
                     chain.proceed(args)
                 }
@@ -155,6 +158,13 @@ internal object NotificationClickZoomPolicy {
     ): Boolean =
         shouldCheckTarget(isActivity, isBubble, alreadyZoomPath) &&
             resizeMode == SUPPORTED_RESIZE_MODE
+
+    fun promoteLaunchArguments(args: Array<Any?>): Boolean {
+        if (args.size <= 6) return false
+        args[ANIMATE_ARG] = true
+        args[ZOOM_ARG] = true
+        return true
+    }
 
     fun tapExitVelocityY(
         isActivity: Boolean,

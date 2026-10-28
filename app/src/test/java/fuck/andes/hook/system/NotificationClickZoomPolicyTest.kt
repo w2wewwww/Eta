@@ -29,6 +29,25 @@ class NotificationClickZoomPolicyTest {
     }
 
     @Test
+    fun supportedZoomLaunchEnablesAnimationAndZoomWithoutChangingActivityFlag() {
+        val args = arrayOfNulls<Any>(7)
+        args[4] = false
+        args[5] = true
+        args[6] = false
+
+        assertTrue(NotificationClickZoomPolicy.promoteLaunchArguments(args))
+
+        assertTrue(args[4] as Boolean)
+        assertTrue(args[5] as Boolean)
+        assertTrue(args[6] as Boolean)
+    }
+
+    @Test
+    fun promoteLaunchArgumentsRejectsUnexpectedSignature() {
+        assertFalse(NotificationClickZoomPolicy.promoteLaunchArguments(arrayOfNulls(6)))
+    }
+
+    @Test
     fun unsupportedTargetsKeepTheFullscreenPath() {
         listOf(0, 1, 3, 5).forEach { resizeMode ->
             assertFalse(
