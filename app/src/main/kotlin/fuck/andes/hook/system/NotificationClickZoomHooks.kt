@@ -93,7 +93,7 @@ internal object NotificationClickZoomHooks {
                 if (!NotificationClickZoomPolicy.promoteLaunchArguments(args)) {
                     return@intercept chain.proceed()
                 }
-                hooks.logger.debug { "通知点击目标 ResizeMode=4，启用启动动画、小窗参数和上滑弹簧" }
+                hooks.logger.debug { "通知点击目标 ResizeMode=4，使用原生小窗参数: animate=${args[4]}, activityLaunch=${args[5]}, zoom=${args[6]}, 上滑速度=$tapExitVelocityY" }
                 withTapExitVelocity(entry, tapExitVelocityY) {
                     chain.proceed(args)
                 }
@@ -130,7 +130,7 @@ internal object NotificationClickZoomHooks {
                 parameters[2] == Boolean::class.javaPrimitiveType
         } ?: return null
         return try {
-            method.invoke(rowExtension, row, true, false) as? Bundle
+            method.invoke(rowExtension, row, false, true) as? Bundle
         } catch (_: ReflectiveOperationException) {
             null
         } catch (_: IllegalArgumentException) {
@@ -141,9 +141,9 @@ internal object NotificationClickZoomHooks {
 
 internal object NotificationClickZoomPolicy {
     private const val SUPPORTED_RESIZE_MODE = 4
-    // startNotificationIntent(..., showOverLockscreen, animate, flingZoom)
-    private const val SHOW_OVER_LOCKSCREEN_ARG = 4
-    private const val ANIMATE_ARG = 5
+    // Native onStartFloatWindow calls startNotificationIntent(..., true, isActivity, true).
+    private const val FLOAT_WINDOW_ANIMATE_ARG = 4
+    private const val ACTIVITY_LAUNCH_ARG = 5
     private const val ZOOM_ARG = 6
     // ColorOS switches its native zoom spring to the faster response above 6000 px/s.
     private const val TAP_EXIT_FLING_SPEED_Y = 6500f
@@ -164,11 +164,12 @@ internal object NotificationClickZoomPolicy {
 
     fun promoteLaunchArguments(args: Array<Any?>): Boolean {
         if (args.size <= ZOOM_ARG ||
-            args[SHOW_OVER_LOCKSCREEN_ARG] !is Boolean ||
-            args[ANIMATE_ARG] !is Boolean ||
+            args[FLOAT_WINDOW_ANIMATE_ARG] !is Boolean ||
+            args[ACTIVITY_LAUNCH_ARG] !is Boolean ||
             args[ZOOM_ARG] !is Boolean
         ) return false
-        args[ANIMATE_ARG] = true
+        args[FLOAT_WINDOW_ANIMATE_ARG] = true
+        args[ACTIVITY_LAUNCH_ARG] = true
         args[ZOOM_ARG] = true
         return true
     }
