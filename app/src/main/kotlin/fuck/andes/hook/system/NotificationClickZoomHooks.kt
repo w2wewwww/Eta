@@ -11,8 +11,8 @@ import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Route regular notification taps through ColorOS' native zoom path only when its own
- * flexible-window classifier says ResizeMode=4. Unsupported targets stay fullscreen. */
+/** Route eligible notification taps through the same native float-window entry used by the
+ * notification menu. Unsupported targets stay on the normal fullscreen path. */
 internal object NotificationClickZoomHooks {
     private const val STARTER =
         "com.android.systemui.statusbar.phone.StatusBarNotificationActivityStarter"
@@ -91,10 +91,18 @@ internal object NotificationClickZoomHooks {
                     resizeMode = bundle.getInt(RESIZE_MODE, 0),
                 ) ?: return@intercept chain.proceed()
 
+                val starter = chain.getThisObject()
+                val nativeStarter = HookSupport.getFieldValue(starter, "mActivityStarterEx")
+                if (nativeStarter != null && invokeNativeFloatWindow(
+                        nativeStarter, starter, row, tapExitVelocityY, hooks.logger,
+                    )
+                ) {
+                    hooks.logger.debug { "通知点击复用长按菜单原生浮窗入口，保留打开动画" }
+                    return@intercept null
+                }
                 if (!NotificationClickZoomPolicy.promoteLaunchArguments(args)) {
                     return@intercept chain.proceed()
                 }
-                val starter = chain.getThisObject()
                 val shadeController = HookSupport.getFieldValue(starter, "mShadeController")
                 val panelExpanded = shadeController?.let {
                     HookSupport.invokeNoArgs(it, "isExpandedVisible") as? Boolean
@@ -129,6 +137,31 @@ internal object NotificationClickZoomHooks {
                     chain.proceed(args)
                 }
             }
+        }
+    }
+
+    private fun invokeNativeFloatWindow(
+        nativeStarter: Any,
+        starter: Any,
+        row: Any,
+        velocityY: Float,
+        logger: ModuleLogger,
+    ): Boolean {
+        val method = HookSupport.findPublicMethod(nativeStarter.javaClass) { candidate ->
+            val parameters = candidate.parameterTypes
+            candidate.name == "onStartFloatWindow" &&
+                candidate.returnType == Boolean::class.javaPrimitiveType &&
+                parameters.size == 3 && parameters[0].isInstance(starter) &&
+                parameters[1].isInstance(row) && parameters[2] == Float::class.javaPrimitiveType
+        } ?: return false
+        return try {
+            method.invoke(nativeStarter, starter, row, velocityY) as? Boolean == true
+        } catch (exception: ReflectiveOperationException) {
+            logger.error("调用长按菜单原生浮窗入口失败", exception)
+            false
+        } catch (exception: IllegalArgumentException) {
+            logger.error("原生浮窗入口参数不匹配", exception)
+            false
         }
     }
 
