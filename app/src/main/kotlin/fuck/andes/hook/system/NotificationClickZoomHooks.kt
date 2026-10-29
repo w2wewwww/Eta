@@ -9,7 +9,6 @@ import fuck.andes.core.HookSupport
 import fuck.andes.core.ModuleLogger
 import io.github.libxposed.api.XposedModule
 import java.lang.reflect.Method
-import java.util.concurrent.atomic.AtomicBoolean
 
 /** Route eligible notification taps through the same native float-window entry used by the
  * notification menu. Unsupported targets stay on the normal fullscreen path. */
@@ -96,44 +95,14 @@ internal object NotificationClickZoomHooks {
                 if (!NotificationClickZoomPolicy.promoteLaunchArguments(args)) {
                     return@intercept chain.proceed()
                 }
-                val shadeController = HookSupport.getFieldValue(starter, "mShadeController")
-                val panelExpanded = shadeController?.let {
-                    HookSupport.invokeNoArgs(it, "isExpandedVisible") as? Boolean
-                } ?: false
-                val isHeadsUp = HookSupport.invokeNoArgs(row, "isHeadsUpState") as? Boolean ?: true
-                val keyguard = HookSupport.getFieldValue(starter, "mKeyguardStateController")
-                val keyguardShowing = keyguard?.let {
-                    HookSupport.getFieldValue(it, "mShowing") as? Boolean
-                } ?: true
-                val rowOnKeyguard = HookSupport.getFieldValue(row, "mOnKeyguard") as? Boolean ?: true
-                if (NotificationClickZoomPolicy.shouldDeferUntilShadeCollapsed(
-                        panelExpanded = panelExpanded,
-                        isHeadsUp = isHeadsUp,
-                        isOnKeyguard = keyguardShowing || rowOnKeyguard,
-                    ) && shadeController != null && deferUntilShadeCollapsed(
-                        module = module,
-                        method = method,
-                        starter = starter,
-                        shadeController = shadeController,
-                        nativeStarter = nativeStarter,
-                        row = row,
-                        args = args,
-                        entry = entry,
-                        velocityY = tapExitVelocityY,
-                        logger = hooks.logger,
-                    )
-                ) {
-                    hooks.logger.debug { "通知中心先收起，再启动小窗" }
+                val nativeTransitionStarted = nativeStarter != null && invokeNativeFloatWindow(
+                    nativeStarter, starter, row, tapExitVelocityY, hooks.logger,
+                )
+                if (nativeTransitionStarted) {
+                    hooks.logger.debug { "通知点击已在通知行可见时启动原生浮窗转场，由系统协调收起与打开动画" }
                     return@intercept null
                 }
-
-                if (nativeStarter != null && invokeNativeFloatWindow(
-                        nativeStarter, starter, row, tapExitVelocityY, hooks.logger,
-                    )
-                ) {
-                    hooks.logger.debug { "通知点击复用长按菜单原生浮窗入口，保留打开动画" }
-                    return@intercept null
-                }
+                hooks.logger.warn("原生浮窗入口未启动转场，回退到普通通知小窗启动参数")
                 hooks.logger.debug { "通知点击目标 ResizeMode=4，使用原生小窗参数并保留上滑速度=$tapExitVelocityY" }
                 withTapExitVelocity(entry, tapExitVelocityY) {
                     chain.proceed(args)
@@ -164,67 +133,6 @@ internal object NotificationClickZoomHooks {
         } catch (exception: IllegalArgumentException) {
             logger.error("原生浮窗入口参数不匹配", exception)
             false
-        }
-    }
-
-    private fun deferUntilShadeCollapsed(
-        module: XposedModule,
-        method: Method,
-        starter: Any,
-        shadeController: Any,
-        nativeStarter: Any?,
-        row: Any,
-        args: Array<Any?>,
-        entry: Any,
-        velocityY: Float,
-        logger: ModuleLogger,
-    ): Boolean {
-        val addPostCollapseAction = HookSupport.findMethod(
-            shadeController.javaClass,
-            "addPostCollapseAction",
-            Runnable::class.java,
-        ) ?: return false
-        val collapseShade = HookSupport.findMethod(
-            shadeController.javaClass,
-            "collapseShade",
-            Boolean::class.javaPrimitiveType!!,
-        ) ?: return false
-        val invoker = try {
-            module.getInvoker(method)
-        } catch (exception: Exception) {
-            logger.error("无法创建通知启动原方法调用器", exception)
-            return false
-        }
-        val launched = AtomicBoolean(false)
-        val launchAfterCollapse = Runnable {
-            if (!launched.compareAndSet(false, true)) return@Runnable
-            try {
-                if (nativeStarter != null && invokeNativeFloatWindow(
-                        nativeStarter, starter, row, velocityY, logger,
-                    )
-                ) {
-                    logger.debug { "通知中心收起后已调用原生浮窗入口" }
-                } else {
-                    withTapExitVelocity(entry, velocityY) {
-                        invoker.invoke(starter, *args)
-                    }
-                }
-            } catch (exception: Exception) {
-                logger.error("通知中心收起后启动小窗失败", exception)
-            }
-        }
-        return try {
-            addPostCollapseAction.invoke(shadeController, launchAfterCollapse)
-            collapseShade.invoke(shadeController, true)
-            true
-        } catch (exception: ReflectiveOperationException) {
-            logger.error("无法启动通知中心收起动画", exception)
-            launchAfterCollapse.run()
-            true
-        } catch (exception: IllegalArgumentException) {
-            logger.error("通知中心收起动画参数不匹配", exception)
-            launchAfterCollapse.run()
-            true
         }
     }
 
@@ -288,12 +196,6 @@ internal object NotificationClickZoomPolicy {
     ): Boolean =
         shouldCheckTarget(isActivity, isBubble, alreadyZoomPath) &&
             resizeMode == SUPPORTED_RESIZE_MODE
-
-    fun shouldDeferUntilShadeCollapsed(
-        panelExpanded: Boolean,
-        isHeadsUp: Boolean,
-        isOnKeyguard: Boolean,
-    ): Boolean = panelExpanded && !isHeadsUp && !isOnKeyguard
 
     fun promoteLaunchArguments(args: Array<Any?>): Boolean {
         if (args.size <= ZOOM_ARG ||
