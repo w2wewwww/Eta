@@ -93,13 +93,6 @@ internal object NotificationClickZoomHooks {
 
                 val starter = chain.getThisObject()
                 val nativeStarter = HookSupport.getFieldValue(starter, "mActivityStarterEx")
-                if (nativeStarter != null && invokeNativeFloatWindow(
-                        nativeStarter, starter, row, tapExitVelocityY, hooks.logger,
-                    )
-                ) {
-                    hooks.logger.debug { "通知点击复用长按菜单原生浮窗入口，保留打开动画" }
-                    return@intercept null
-                }
                 if (!NotificationClickZoomPolicy.promoteLaunchArguments(args)) {
                     return@intercept chain.proceed()
                 }
@@ -122,6 +115,8 @@ internal object NotificationClickZoomHooks {
                         method = method,
                         starter = starter,
                         shadeController = shadeController,
+                        nativeStarter = nativeStarter,
+                        row = row,
                         args = args,
                         entry = entry,
                         velocityY = tapExitVelocityY,
@@ -132,6 +127,13 @@ internal object NotificationClickZoomHooks {
                     return@intercept null
                 }
 
+                if (nativeStarter != null && invokeNativeFloatWindow(
+                        nativeStarter, starter, row, tapExitVelocityY, hooks.logger,
+                    )
+                ) {
+                    hooks.logger.debug { "通知点击复用长按菜单原生浮窗入口，保留打开动画" }
+                    return@intercept null
+                }
                 hooks.logger.debug { "通知点击目标 ResizeMode=4，使用原生小窗参数并保留上滑速度=$tapExitVelocityY" }
                 withTapExitVelocity(entry, tapExitVelocityY) {
                     chain.proceed(args)
@@ -170,6 +172,8 @@ internal object NotificationClickZoomHooks {
         method: Method,
         starter: Any,
         shadeController: Any,
+        nativeStarter: Any?,
+        row: Any,
         args: Array<Any?>,
         entry: Any,
         velocityY: Float,
@@ -195,8 +199,15 @@ internal object NotificationClickZoomHooks {
         val launchAfterCollapse = Runnable {
             if (!launched.compareAndSet(false, true)) return@Runnable
             try {
-                withTapExitVelocity(entry, velocityY) {
-                    invoker.invoke(starter, *args)
+                if (nativeStarter != null && invokeNativeFloatWindow(
+                        nativeStarter, starter, row, velocityY, logger,
+                    )
+                ) {
+                    logger.debug { "通知中心收起后已调用原生浮窗入口" }
+                } else {
+                    withTapExitVelocity(entry, velocityY) {
+                        invoker.invoke(starter, *args)
+                    }
                 }
             } catch (exception: Exception) {
                 logger.error("通知中心收起后启动小窗失败", exception)
