@@ -29,6 +29,38 @@ class NotificationClickZoomPolicyTest {
     }
 
     @Test
+    fun onlyRegularExpandedShadeClicksDeferLaunchUntilCollapse() {
+        assertTrue(
+            NotificationClickZoomPolicy.shouldDeferUntilShadeCollapsed(
+                panelExpanded = true,
+                isHeadsUp = false,
+                isOnKeyguard = false,
+            )
+        )
+        assertFalse(
+            NotificationClickZoomPolicy.shouldDeferUntilShadeCollapsed(
+                panelExpanded = false,
+                isHeadsUp = false,
+                isOnKeyguard = false,
+            )
+        )
+        assertFalse(
+            NotificationClickZoomPolicy.shouldDeferUntilShadeCollapsed(
+                panelExpanded = true,
+                isHeadsUp = true,
+                isOnKeyguard = false,
+            )
+        )
+        assertFalse(
+            NotificationClickZoomPolicy.shouldDeferUntilShadeCollapsed(
+                panelExpanded = true,
+                isHeadsUp = false,
+                isOnKeyguard = true,
+            )
+        )
+    }
+
+    @Test
     fun supportedZoomLaunchMatchesNativeFloatWindowArguments() {
         val args = arrayOfNulls<Any>(7)
         args[4] = false
