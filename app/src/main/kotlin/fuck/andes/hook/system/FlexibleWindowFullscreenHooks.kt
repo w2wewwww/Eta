@@ -25,6 +25,7 @@ internal object FlexibleWindowFullscreenHooks {
     private const val ARG_OPTIONS = 0
     private const val ARG_START_ACTIVITY = 2
     private const val ARG_TARGET_TASK = 3
+    private const val ARG_REQUEST = 7
     private const val REASON_FORCE_FULLSCREEN = 3
     private const val NOTIFICATION_ZOOM_FLAG_TAP = 5
     private const val NOTIFICATION_ZOOM_FLAG_REPLY = 20
@@ -79,6 +80,23 @@ internal object FlexibleWindowFullscreenHooks {
                     getZoomLaunchFlag.invoke(null, options) as? Number
                 }.getOrNull()?.toInt()
                 if (zoomLaunchFlag != null && isNotificationLaunch(zoomLaunchFlag)) {
+                    return@intercept chain.proceed()
+                }
+                val request = chain.getArg(ARG_REQUEST)
+                val callingPackage = request?.let {
+                    HookSupport.getFieldValue(it, "callingPackage") as? String
+                }
+                val launchWindowingMode = options?.let {
+                    (HookSupport.invokeNoArgs(it, "getLaunchWindowingMode") as? Number)?.toInt()
+                } ?: 0
+                if (FlexibleWindowFullscreenPolicy.shouldPreserveSidebarZoom(
+                        callingPackage = callingPackage,
+                        launchWindowingMode = launchWindowingMode,
+                    )
+                ) {
+                    hooks.logger.debug {
+                        "保留侧边栏原生小窗: caller=$callingPackage mode=$launchWindowingMode"
+                    }
                     return@intercept chain.proceed()
                 }
                 if (options != null) runCatching { resetZoomOptions.invoke(null, options) }
@@ -139,4 +157,17 @@ internal object FlexibleWindowFullscreenHooks {
         (HookSupport.invokeNoArgs(task, "inMultiWindowMode") as? Boolean)
             ?: false
 
+}
+
+internal object FlexibleWindowFullscreenPolicy {
+    private const val SMART_SIDEBAR_PACKAGE = "com.coloros.smartsidebar"
+    private const val GAME_SIDEBAR_PACKAGE = "com.oplus.games"
+    private const val ZOOM_WINDOWING_MODE = 100
+
+    fun shouldPreserveSidebarZoom(
+        callingPackage: String?,
+        launchWindowingMode: Int,
+    ): Boolean =
+        launchWindowingMode == ZOOM_WINDOWING_MODE &&
+            (callingPackage == SMART_SIDEBAR_PACKAGE || callingPackage == GAME_SIDEBAR_PACKAGE)
 }
